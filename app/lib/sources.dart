@@ -1,9 +1,22 @@
 /// One source of activity data and its state on the server.
 class SourceInfo {
-  const SourceInfo({required this.source, required this.enabled, this.lastSync, this.lastError});
+  const SourceInfo({
+    required this.source,
+    required this.enabled,
+    this.lastSync,
+    this.lastError,
+    this.configured = true,
+    this.missing,
+  });
 
   final String source;
   final bool enabled;
+
+  /// The server has what the source needs (a key in .env, the city).
+  final bool configured;
+
+  /// What is not set up, when [configured] is false.
+  final String? missing;
   final String? lastSync; // ISO 8601
   final String? lastError;
 
@@ -12,6 +25,8 @@ class SourceInfo {
         enabled: j['enabled'] as bool? ?? true,
         lastSync: j['last_sync'] as String?,
         lastError: j['last_error'] as String?,
+        configured: j['configured'] as bool? ?? true,
+        missing: j['missing'] as String?,
       );
 
   String get title => sourceTitles[source] ?? source;

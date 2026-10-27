@@ -44,6 +44,7 @@ type Server struct {
 	llmInfo *LLMInfo
 	advisor AdviceGenerator
 	caller  appcat.Caller
+	keyed   map[string]bool
 }
 
 type Options struct {
@@ -58,6 +59,9 @@ type Options struct {
 	LLM      *LLMInfo         // nil: /v1/llm reports the LLM as not configured
 	Advisor  AdviceGenerator  // nil: /v1/advice reports the LLM as not configured
 	Caller   appcat.Caller    // nil: /v1/categorize uses only the cache and the dictionary
+	// Keyed lists the server-side sources whose keys are in the environment
+	// (steam, github, leetcode); the others are shown as not set up.
+	Keyed map[string]bool
 	// RatePerSec and Burst limit requests per client on /v1/*.
 	RatePerSec float64
 	Burst      int
@@ -81,6 +85,7 @@ func NewServer(o Options) *Server {
 		llmInfo: o.LLM,
 		advisor: o.Advisor,
 		caller:  o.Caller,
+		keyed:   o.Keyed,
 	}
 	if s.loc == nil {
 		s.loc = time.UTC

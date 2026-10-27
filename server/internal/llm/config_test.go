@@ -15,6 +15,11 @@ func TestDefaultConfig(t *testing.T) {
 	if c.Tasks[TaskParse].Effort != "low" || c.Tasks[TaskAdvice].Effort != "medium" {
 		t.Errorf("default efforts of section 14: %+v", c.Tasks)
 	}
+	// A fresh server parses phrases without a trip to the settings: the
+	// default is the model chosen on the reference set (stage 5).
+	if c.Tasks[TaskParse].Model == "" || c.Tasks[TaskAdvice].Model == "" {
+		t.Errorf("default models must be set: %+v", c.Tasks)
+	}
 }
 
 func TestParseOverrides(t *testing.T) {
@@ -49,10 +54,10 @@ func TestMerge(t *testing.T) {
 	if p.Model != "a/m:free" || p.Effort != "low" || p.MaxTokens != 2000 || len(p.Fallbacks) != 1 {
 		t.Errorf("override on top of defaults: %+v", p)
 	}
-	if c.Tasks[TaskAdvice].Model != "" {
+	if c.Tasks[TaskAdvice].Model != base.Tasks[TaskAdvice].Model {
 		t.Error("untouched task keeps its default")
 	}
-	if base.Tasks[TaskParse].Model != "" {
+	if fresh, _ := DefaultConfig(); base.Tasks[TaskParse].Model != fresh.Tasks[TaskParse].Model {
 		t.Error("Merge must not modify the defaults")
 	}
 

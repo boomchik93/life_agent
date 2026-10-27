@@ -69,13 +69,24 @@ func TestActivityDailyStoresAndReplaces(t *testing.T) {
 		t.Errorf("replace: %+v", rows)
 	}
 
-	var res struct{ Sources []store.SourceState }
+	var res struct {
+		Sources []struct {
+			store.SourceState
+			Configured bool
+			Missing    string
+		}
+	}
 	code, body := send(h, "GET", "/v1/sources", "")
 	json.Unmarshal([]byte(body), &res)
 	if code != 200 || len(res.Sources) != 6 {
 		t.Fatalf("sources: %d %s", code, body)
 	}
 	for _, s := range res.Sources {
+		// No keys and no city in this server: only the device sources are set up.
+		wantConfigured := s.Source == "android_usage" || s.Source == "mac_activitywatch"
+		if s.Configured != wantConfigured || (s.Missing == "") != wantConfigured {
+			t.Errorf("%s: configured %v, missing %q", s.Source, s.Configured, s.Missing)
+		}
 		if s.Source == "android_usage" && (s.LastSync == nil || !s.Enabled) {
 			t.Errorf("phone state: %+v", s)
 		}
@@ -313,6 +324,37 @@ func TestWeatherSettingIsChecked(t *testing.T) {
 	for _, bad := range []string{`{"weather":{"city":""}}`, `{"weather":{"city":"x","lat":100,"lon":0}}`, `{"weather":{"city":"x","extra":1}}`, `{"weather":"Москва"}`} {
 		if code, _ := send(h, "PUT", "/v1/settings", bad); code != 400 {
 			t.Errorf("%s: %d", bad, code)
+		}
+	}
+}
+
+func TestSourcesConfigured(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	h := New(Options{
+		Store: st, Token: testToken, Logger: slog.New(slog.NewTextHandler(&logged{}, nil)),
+		RatePerSec: 100, Burst: 100, Location: yekat,
+		Keyed: map[string]bool{"steam": true, "github": false},
+	})
+	if code, body := send(h, "PUT", "/v1/settings", `{"weather":{"city":"Екатеринбург"}}`); code != 200 {
+		t.Fatalf("settings: %d %s", code, body)
+	}
+	var res struct {
+		Sources []struct {
+			Source     string
+			Configured bool
+			Missing    string
+		}
+	}
+	_, body := send(h, "GET", "/v1/sources", "")
+	json.Unmarshal([]byte(body), &res)
+	want := map[string]string{"steam": "", "weather": "", "github": "GITHUB_TOKEN и GITHUB_LOGIN", "leetcode": "LEETCODE_USER"}
+	for _, s := range res.Sources {
+		if m, ok := want[s.Source]; ok && (s.Missing != m || s.Configured != (m == "")) {
+			t.Errorf("%s: configured %v, missing %q", s.Source, s.Configured, s.Missing)
 		}
 	}
 }

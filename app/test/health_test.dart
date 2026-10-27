@@ -10,6 +10,7 @@ import 'fakes.dart';
 
 class FakeSource implements HealthSource {
   HealthStatus state = HealthStatus.ready;
+  Set<HealthPart> parts = HealthPart.values.toSet();
   bool bg = true;
   bool grants = true;
   bool installed = false;
@@ -21,6 +22,8 @@ class FakeSource implements HealthSource {
 
   @override
   Future<HealthStatus> status() async => state;
+  @override
+  Future<Set<HealthPart>> granted() async => state == HealthStatus.ready ? parts : {};
   @override
   Future<bool> requestAccess() async {
     if (grants) state = HealthStatus.ready;
@@ -180,7 +183,7 @@ void main() {
       final api = FakeApi();
       final r = await HealthSync(api: api, source: FakeSource(), now: () => now).run();
       expect(r.sent, 0);
-      expect(r.skipped, contains('нет сна и пульса'));
+      expect(r.skipped, contains('нет данных'));
       expect(api.healthSent, isEmpty);
     });
 
@@ -242,7 +245,8 @@ void main() {
       await t.tap(find.text('Отправить сейчас'));
       await t.pumpAndSettle();
       expect(api.healthSent.single.sleepHours, 7);
-      expect(find.text('Отправлено дней: 1.'), findsOneWidget);
+      expect(find.text('Отправлено дней: 1. 28.10: сон 7 ч.'), findsOneWidget);
+      expect(storage.healthNote, '28.10: сон 7 ч');
       expect(storage.healthAt, startsWith('2026-10-28T13:00'));
     });
 
@@ -292,6 +296,36 @@ void main() {
       await t.pumpAndSettle();
       expect(api.healthDeleteCalled, isTrue);
       expect(find.text('Удалено сводок: 3.'), findsOneWidget);
+    });
+
+    testWidgets('the screen lists what is granted and offers the rest', (t) async {
+      final (_, src, _, _) = await open(t);
+      src.parts = {HealthPart.sleep, HealthPart.heartRate};
+      await t.pumpWidget(const SizedBox());
+      final storage = MemoryStorage();
+      await t.pumpWidget(MaterialApp(
+        home: HealthScreen(api: FakeApi(), storage: storage, source: src, scheduler: FakeScheduler()),
+      ));
+      await t.pumpAndSettle();
+      expect(find.text('Сон'), findsOneWidget);
+      expect(find.text('Пульс'), findsOneWidget);
+      expect(find.text('Шаги — нет доступа'), findsOneWidget);
+      expect(find.text('Тренировки — нет доступа'), findsOneWidget);
+
+      src.parts = HealthPart.values.toSet();
+      await t.tap(find.text('Запросить недостающее'));
+      await t.pumpAndSettle();
+      expect(find.text('Запросить недостающее'), findsNothing);
+      expect(find.text('Шаги'), findsOneWidget);
+    });
+
+    test('a partial grant still sends what it can', () async {
+      final api = FakeApi();
+      final src = FakeSource()
+        ..parts = {HealthPart.heartRate}
+        ..samples = [hr(DateTime(2026, 10, 28, 10), 70)];
+      final r = await HealthSync(api: api, source: src, now: () => DateTime(2026, 10, 28, 13)).run();
+      expect(r.summary, '28.10: пульс 70');
     });
 
     testWidgets('the battery hint is on the screen', (t) async {

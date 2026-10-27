@@ -298,8 +298,12 @@ func TestNotConfigured(t *testing.T) {
 	if _, err := c.Call(context.Background(), in(nil)); !errors.Is(err, ErrNotConfigured) {
 		t.Fatalf("err %v", err)
 	}
+	// The user can clear the default model of a task; then it is not configured.
+	cfg, _ := c.Config()
+	cfg.Tasks[TaskAdvice] = TaskConfig{Effort: "medium"}
+	c.Config = func() (Config, error) { return cfg, nil }
 	if _, err := c.Call(context.Background(), Input{Task: TaskAdvice}); !errors.Is(err, ErrNotConfigured) {
-		t.Fatalf("advice has no model either: %v", err)
+		t.Fatalf("advice without a model: %v", err)
 	}
 }
 

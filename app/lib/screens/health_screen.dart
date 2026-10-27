@@ -28,6 +28,7 @@ class HealthScreen extends StatefulWidget {
 
 class _HealthScreenState extends State<HealthScreen> {
   HealthStatus? _status;
+  Set<HealthPart> _granted = {};
   bool _background = false, _syncOn = false, _busy = false;
   String? _message;
   bool _messageOk = true;
@@ -47,8 +48,10 @@ class _HealthScreenState extends State<HealthScreen> {
       status = HealthStatus.unsupported;
     }
     var bg = false;
+    var granted = <HealthPart>{};
     if (status == HealthStatus.ready) {
       try {
+        granted = await widget.source.granted();
         bg = await widget.source.backgroundAllowed();
       } catch (_) {}
     }
@@ -57,6 +60,7 @@ class _HealthScreenState extends State<HealthScreen> {
     if (!mounted) return;
     setState(() {
       _status = status;
+      _granted = granted;
       _background = bg;
       _syncOn = on;
       _last = last;
@@ -85,18 +89,21 @@ class _HealthScreenState extends State<HealthScreen> {
 
   Future<void> _grant() => _guard(() async {
         final ok = await widget.source.requestAccess();
-        if (!ok) _say('Доступ не выдан. Без него сон и пульс не читаются.', ok: false);
+        if (!ok) {
+          _say('Доступ не выдан. Если окно Health Connect не появилось, открой Health Connect → '
+              'Разрешения приложений → Жизнь и включи нужное там.', ok: false);
+        }
         await _refresh();
       });
 
   Future<void> _syncNow() => _guard(() async {
         final result = await HealthSync(api: widget.api, source: widget.source, now: widget.now).run();
         final at = (widget.now?.call() ?? DateTime.now()).toIso8601String();
-        await widget.storage.saveHealthSync(at, result.skipped);
+        await widget.storage.saveHealthSync(at, result.skipped ?? result.summary);
         if (result.skipped != null) {
           _say(result.skipped!, ok: false);
         } else {
-          _say('Отправлено дней: ${result.sent}.');
+          _say('Отправлено дней: ${result.sent}. ${result.summary}.');
         }
         await _refresh();
       });
@@ -209,7 +216,44 @@ class _HealthScreenState extends State<HealthScreen> {
     );
   }
 
+  /// What the app may read, kind by kind, so it is clear what reaches the server.
+  Widget _accessCard() {
+    final theme = Theme.of(context);
+    final missing = HealthPart.values.where((p) => !_granted.contains(p));
+    Widget row(bool on, String name, String? note) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(children: [
+            Icon(on ? Icons.check_circle : Icons.remove_circle_outline,
+                size: 20, color: on ? Colors.green : theme.colorScheme.error),
+            const SizedBox(width: 10),
+            Expanded(child: Text(on ? name : '$name — $note')),
+          ]),
+        );
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Что подключено', style: theme.textTheme.titleSmall),
+            const SizedBox(height: 6),
+            for (final p in HealthPart.values) row(_granted.contains(p), healthPartNames[p]!, 'нет доступа'),
+            row(_background, 'Чтение в фоне', 'не разрешено'),
+            if (missing.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text('Без доступа поле просто не отправляется, остальное работает.', style: theme.textTheme.bodySmall),
+              const SizedBox(height: 8),
+              FilledButton.tonal(onPressed: _busy ? null : _grant, child: const Text('Запросить недостающее')),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _statusCard(HealthStatus status) {
+    if (status == HealthStatus.ready) return _accessCard();
     final (icon, text, action, onTap) = switch (status) {
       HealthStatus.unsupported => (Icons.block, 'Health Connect доступен только на Android.', null, null),
       HealthStatus.notInstalled => (
@@ -222,7 +266,7 @@ class _HealthScreenState extends State<HealthScreen> {
               })
         ),
       HealthStatus.needsAccess => (Icons.lock, 'Нужен доступ к сну и пульсу.', 'Дать доступ', _grant),
-      HealthStatus.ready => (Icons.check_circle, 'Доступ выдан.', null, null),
+      HealthStatus.ready => (Icons.check_circle, 'Health Connect подключён.', null, null),
     };
     return Card(
       margin: EdgeInsets.zero,

@@ -184,7 +184,8 @@ func TestLLMStatusAndOverrides(t *testing.T) {
 	m := get()
 	tasks := m["tasks"].(map[string]any)
 	parseTask := tasks["parse"].(map[string]any)
-	if parseTask["model"] != "" || parseTask["effort"] != "low" || parseTask["reasoning"] != false {
+	def, _ := llm.DefaultConfig()
+	if parseTask["model"] != def.Tasks[llm.TaskParse].Model || parseTask["effort"] != "low" {
 		t.Errorf("defaults: %v", parseTask)
 	}
 	if tasks["advice"].(map[string]any)["effort"] != "medium" {

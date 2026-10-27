@@ -273,7 +273,11 @@ class _SourcesScreenState extends State<SourcesScreen> with WidgetsBindingObserv
 
   Widget _sourceTile(SourceInfo s, ThemeData theme) {
     final sub = <String>[];
-    if (s.lastSync != null) {
+    if (!s.configured) {
+      sub.add(s.source == 'weather'
+          ? 'Не подключён: город не задан'
+          : 'Не подключён: на сервере нет ${s.missing ?? 'ключа'} в .env');
+    } else if (s.lastSync != null) {
       sub.add('Последняя синхронизация: ${_stamp(s.lastSync!)}');
     } else {
       sub.add('Данных пока нет');

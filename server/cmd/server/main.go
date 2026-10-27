@@ -144,6 +144,11 @@ func serve(cfg config.Config, st *store.Store, logger *slog.Logger) error {
 		Store: st, Token: cfg.Token, Logger: logger,
 		Calendar: collector, Location: cfg.Location,
 		RatePerSec: 5, Burst: 20,
+		Keyed: map[string]bool{
+			activity.Steam:    cfg.SteamKey != "",
+			activity.GitHub:   cfg.GitHubToken != "",
+			activity.LeetCode: cfg.LeetCodeUser != "",
+		},
 	}
 	client, info, err := buildLLM(cfg, st, logger)
 	if err != nil {

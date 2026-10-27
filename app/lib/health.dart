@@ -115,11 +115,27 @@ HealthDay summarizeDay(DateTime day, List<Sample> samples, {int? steps}) {
 
 enum HealthStatus { unsupported, notInstalled, needsAccess, ready }
 
+/// The kinds of readings, each with its own Health Connect permission. Any of
+/// them is enough to send a summary: a refused one only leaves its field out.
+enum HealthPart { sleep, heartRate, restingHeartRate, workout, steps }
+
+const healthPartNames = {
+  HealthPart.sleep: 'Сон',
+  HealthPart.heartRate: 'Пульс',
+  HealthPart.restingHeartRate: 'Пульс покоя',
+  HealthPart.workout: 'Тренировки',
+  HealthPart.steps: 'Шаги',
+};
+
 /// Where the readings come from. Health Connect on the phone; a fake in tests.
 abstract class HealthSource {
+  /// Ready when at least one kind of reading is granted.
   Future<HealthStatus> status();
 
-  /// Asks for the read permissions. Returns whether they are granted now.
+  /// The kinds of readings the app may read now.
+  Future<Set<HealthPart>> granted();
+
+  /// Asks for the read permissions. Returns whether any is granted now.
   Future<bool> requestAccess();
 
   /// Whether the app may read while it is closed (needed by the background task).
@@ -146,16 +162,19 @@ class HealthConnectSource implements HealthSource {
   final Health _h;
   bool _configured = false;
 
-  static const _types = [
-    HealthDataType.SLEEP_SESSION,
-    HealthDataType.SLEEP_LIGHT,
-    HealthDataType.SLEEP_DEEP,
-    HealthDataType.SLEEP_REM,
-    HealthDataType.SLEEP_ASLEEP,
-    HealthDataType.HEART_RATE,
-    HealthDataType.RESTING_HEART_RATE,
-    HealthDataType.WORKOUT,
-  ];
+  static const _parts = {
+    HealthPart.sleep: [
+      HealthDataType.SLEEP_SESSION,
+      HealthDataType.SLEEP_LIGHT,
+      HealthDataType.SLEEP_DEEP,
+      HealthDataType.SLEEP_REM,
+      HealthDataType.SLEEP_ASLEEP,
+    ],
+    HealthPart.heartRate: [HealthDataType.HEART_RATE],
+    HealthPart.restingHeartRate: [HealthDataType.RESTING_HEART_RATE],
+    HealthPart.workout: [HealthDataType.WORKOUT],
+    HealthPart.steps: [HealthDataType.STEPS],
+  };
 
   Future<void> _configure() async {
     if (_configured) return;
@@ -168,17 +187,27 @@ class HealthConnectSource implements HealthSource {
     if (!Platform.isAndroid) return HealthStatus.unsupported;
     await _configure();
     if (!await _h.isHealthConnectAvailable()) return HealthStatus.notInstalled;
-    final granted = await _h.hasPermissions(_types) ?? false;
-    return granted ? HealthStatus.ready : HealthStatus.needsAccess;
+    return (await granted()).isEmpty ? HealthStatus.needsAccess : HealthStatus.ready;
+  }
+
+  @override
+  Future<Set<HealthPart>> granted() async {
+    await _configure();
+    final out = <HealthPart>{};
+    for (final e in _parts.entries) {
+      if (await _h.hasPermissions(e.value) ?? false) out.add(e.key);
+    }
+    return out;
   }
 
   @override
   Future<bool> requestAccess() async {
     await _configure();
-    final ok = await _h.requestAuthorization(_types);
-    // Steps have their own permission; a refusal only leaves the steps out.
-    if (ok) await _h.requestAuthorization(_stepsTypes);
-    if (ok && await _h.isHealthDataInBackgroundAvailable()) {
+    // One dialog for everything; the user may switch off any kind there and
+    // the rest still works.
+    await _h.requestAuthorization([for (final t in _parts.values) ...t]);
+    final ok = (await granted()).isNotEmpty;
+    if (ok && await _h.isHealthDataInBackgroundAvailable() && !await _h.isHealthDataInBackgroundAuthorized()) {
       await _h.requestHealthDataInBackgroundAuthorization();
     }
     return ok;
@@ -196,7 +225,13 @@ class HealthConnectSource implements HealthSource {
   @override
   Future<List<Sample>> read(DateTime from, DateTime to) async {
     await _configure();
-    final points = await _h.getHealthDataFromTypes(types: _types, startTime: from, endTime: to);
+    final have = await granted();
+    final types = [
+      for (final e in _parts.entries)
+        if (e.key != HealthPart.steps && have.contains(e.key)) ...e.value,
+    ];
+    if (types.isEmpty) return const [];
+    final points = await _h.getHealthDataFromTypes(types: types, startTime: from, endTime: to);
     final out = <Sample>[];
     for (final p in points) {
       final v = p.value;
@@ -217,7 +252,7 @@ class HealthConnectSource implements HealthSource {
   Future<int?> steps(DateTime from, DateTime to) async {
     await _configure();
     try {
-      if (!(await _h.hasPermissions(_stepsTypes) ?? false)) return null;
+      if (!(await _h.hasPermissions(_parts[HealthPart.steps]!) ?? false)) return null;
       return await _h.getTotalStepsInInterval(from, to);
     } catch (_) {
       return null;
@@ -238,15 +273,30 @@ class HealthConnectSource implements HealthSource {
   }
 }
 
-/// The two readings Health Connect needs a separate permission for are asked
-/// for on their own, so a refusal does not break sleep and heart rate.
-const _stepsTypes = [HealthDataType.STEPS];
+/// What a summary holds, in words: «сон 7.5 ч, пульс 64, шаги 8000».
+String describeDay(HealthDay d) {
+  String n(double v) => v == v.roundToDouble() ? v.toInt().toString() : v.toString();
+  return [
+    if (d.sleepHours != null) 'сон ${n(d.sleepHours!)} ч',
+    if (d.avgHr != null) 'пульс ${n(d.avgHr!)}',
+    if (d.restingHr != null) 'пульс покоя ${n(d.restingHr!)}',
+    if (d.steps != null) 'шаги ${d.steps}',
+    if (d.workoutMin != null) 'тренировки ${d.workoutMin} мин',
+  ].join(', ');
+}
 
 class SyncResult {
-  const SyncResult({this.sent = 0, this.skipped});
+  const SyncResult({this.days = const [], this.skipped});
+
+  /// The summaries sent to the server.
+  final List<HealthDay> days;
 
   /// Days sent to the server.
-  final int sent;
+  int get sent => days.length;
+
+  /// What was sent, day by day: «27.10: сон 7 ч, пульс 64; 28.10: шаги 3000».
+  String get summary =>
+      [for (final d in days) '${d.date.substring(8)}.${d.date.substring(5, 7)}: ${describeDay(d)}'].join('; ');
 
   /// Why nothing was sent: no Health Connect, no permission, no readings.
   final String? skipped;
@@ -273,15 +323,15 @@ class HealthSync {
     final now = _now();
     final today = DateTime(now.year, now.month, now.day);
     final samples = await source.read(DateTime(today.year, today.month, today.day - 2, 18), now);
-    var sent = 0;
+    final sent = <HealthDay>[];
     for (final day in [DateTime(today.year, today.month, today.day - 1), today]) {
       final end = DateTime(day.year, day.month, day.day + 1);
       final steps = await source.steps(day, end.isAfter(now) ? now : end);
       final summary = summarizeDay(day, samples, steps: steps);
       if (summary.isEmpty) continue;
       await api.sendHealthDay(summary);
-      sent++;
+      sent.add(summary);
     }
-    return SyncResult(sent: sent, skipped: sent == 0 ? 'В Health Connect нет сна и пульса за эти дни.' : null);
+    return SyncResult(days: sent, skipped: sent.isEmpty ? 'В Health Connect нет данных за вчера и сегодня.' : null);
   }
 }

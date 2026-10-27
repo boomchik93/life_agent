@@ -4,8 +4,8 @@
     "base_url": "https://openrouter.ai/api/v1"
   },
   "tasks": {
-    "parse": {"model": "", "effort": "low", "fallbacks": [], "max_tokens": 2000},
-    "advice": {"model": "", "effort": "medium", "fallbacks": [], "max_tokens": 2500}
+    "parse": {"model": "nvidia/nemotron-3.5-super-vl:free", "effort": "low", "fallbacks": [], "max_tokens": 2000},
+    "advice": {"model": "nvidia/nemotron-3.5-super-vl:free", "effort": "medium", "fallbacks": [], "max_tokens": 2500}
   },
   "limits": {
     "max_calls_per_request": 4,

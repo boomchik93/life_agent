@@ -34,7 +34,7 @@ Future<bool> runBackgroundJobs(LifeApi api, AppStorage storage, HealthSource hea
   if (await storage.healthSyncEnabled()) {
     try {
       final result = await HealthSync(api: api, source: health, now: now).run();
-      await storage.saveHealthSync(clock().toIso8601String(), result.skipped);
+      await storage.saveHealthSync(clock().toIso8601String(), result.skipped ?? result.summary);
     } on ApiException catch (e) {
       await storage.saveHealthSync(clock().toIso8601String(), e.message);
       retry |= e.problem == ApiProblem.network;

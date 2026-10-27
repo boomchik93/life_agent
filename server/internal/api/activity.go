@@ -9,6 +9,7 @@ import (
 
 	"lifeagent/internal/activity"
 	"lifeagent/internal/store"
+	"lifeagent/internal/weather"
 )
 
 const (
@@ -110,13 +111,49 @@ func (s *Server) postActivityDaily(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"source": in.Source, "date": in.Date, "rows": len(rows)})
 }
 
+// sourceView is a source's state plus whether it can deliver anything at all.
+type sourceView struct {
+	store.SourceState
+	// Configured: the server has what the source needs (a key in .env, the
+	// city). The phone and the Mac are set up on the device, so they are
+	// always configured here; their last_sync tells whether they report.
+	Configured bool `json:"configured"`
+	// Missing names what is not set up, for the app to show; empty if configured.
+	Missing string `json:"missing,omitempty"`
+}
+
+// missingKeys says what each server-side source needs from .env.
+var missingKeys = map[string]string{
+	activity.Steam:    "STEAM_API_KEY и STEAM_ID",
+	activity.GitHub:   "GITHUB_TOKEN и GITHUB_LOGIN",
+	activity.LeetCode: "LEETCODE_USER",
+}
+
 func (s *Server) getSources(w http.ResponseWriter, r *http.Request) {
 	states, err := s.store.SourceStates(activity.Sources)
 	if err != nil {
 		s.fail(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"sources": states})
+	kv, err := s.store.Settings()
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	out := make([]sourceView, 0, len(states))
+	for _, st := range states {
+		v := sourceView{SourceState: st, Configured: true}
+		switch {
+		case st.Source == activity.Weather:
+			if _, err := weather.ParseLocation([]byte(kv[weather.SettingKey])); err != nil {
+				v.Configured, v.Missing = false, "город"
+			}
+		case missingKeys[st.Source] != "" && !s.keyed[st.Source]:
+			v.Configured, v.Missing = false, missingKeys[st.Source]
+		}
+		out = append(out, v)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"sources": out})
 }
 
 func (s *Server) putSource(w http.ResponseWriter, r *http.Request) {
