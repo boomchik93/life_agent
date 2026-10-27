@@ -21,6 +21,7 @@ type Config struct {
 
 	GoogleKeyFile string   // service-account JSON key
 	CalendarIDs   []string // calendars read by the agent
+	CalendarWrite string   // calendar the agent creates events in; empty: writing is off
 	ICSURL        string   // optional class-schedule feed
 
 	OpenRouterKey string // empty: the LLM features report "not configured"
@@ -48,13 +49,14 @@ func Load(getenv func(string) string) (Config, error) {
 
 	c.GoogleKeyFile = getenv("GOOGLE_SA_KEY_FILE")
 	c.ICSURL = getenv("ICS_URL")
+	c.CalendarWrite = strings.TrimSpace(getenv("CALENDAR_WRITE_ID"))
 	c.OpenRouterKey = getenv("OPENROUTER_API_KEY")
 	for _, id := range strings.Split(getenv("CALENDAR_IDS"), ",") {
 		if id = strings.TrimSpace(id); id != "" {
 			c.CalendarIDs = append(c.CalendarIDs, id)
 		}
 	}
-	if len(c.CalendarIDs) > 0 && c.GoogleKeyFile == "" {
+	if (len(c.CalendarIDs) > 0 || c.CalendarWrite != "") && c.GoogleKeyFile == "" {
 		return Config{}, errors.New("CALENDAR_IDS is set but GOOGLE_SA_KEY_FILE is not")
 	}
 	return c, nil

@@ -27,7 +27,7 @@ func TestMigrateIdempotent(t *testing.T) {
 	}
 	defer s2.Close()
 	var n int
-	if err := s2.DB.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&n); err != nil || n != 3 {
+	if err := s2.DB.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&n); err != nil || n != 4 {
 		t.Fatalf("migrations applied = %d, err %v", n, err)
 	}
 }
@@ -154,5 +154,44 @@ func TestLLMCalls(t *testing.T) {
 	bad.Result, bad.Source = "ok", "bot"
 	if err := s.AddLLMCall(bad); err == nil {
 		t.Error("accepted unknown source")
+	}
+}
+
+func TestItemsIdempotent(t *testing.T) {
+	s, _ := open(t)
+	ev := "abc"
+	it := Item{Kind: "event", Title: "КВН", Category: "hobby", Status: "written", IdempotencyKey: "key-1", EventID: &ev}
+	first, created, err := s.AddItem(it)
+	if err != nil || !created || first.ID == 0 {
+		t.Fatalf("first add: %+v created=%v err=%v", first, created, err)
+	}
+	it.Title = "другое"
+	again, created, err := s.AddItem(it)
+	if err != nil || created || again.ID != first.ID || again.Title != "КВН" {
+		t.Fatalf("repeat must return the stored item: %+v created=%v err=%v", again, created, err)
+	}
+	if _, ok, _ := s.ItemByKey("nope"); ok {
+		t.Fatal("unknown key found")
+	}
+}
+
+func TestCategoryMemory(t *testing.T) {
+	s, _ := open(t)
+	if _, ok, _ := s.CategoryOf("квн"); ok {
+		t.Fatal("memory must start empty")
+	}
+	for _, c := range []string{"hobby", "hobby", "study"} {
+		if err := s.RememberCategory("квн", c, "user"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, ok, err := s.CategoryOf("квн")
+	if err != nil || !ok || got != "study" {
+		t.Fatalf("the last answer wins: %q %v %v", got, ok, err)
+	}
+	var n int
+	s.DB.QueryRow(`SELECT confirmations FROM category_memory WHERE name = 'квн'`).Scan(&n)
+	if n != 1 {
+		t.Fatalf("a changed answer restarts the count, got %d", n)
 	}
 }

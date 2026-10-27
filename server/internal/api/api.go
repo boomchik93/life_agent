@@ -21,12 +21,18 @@ type Collector interface {
 	Collect(ctx context.Context, from, to time.Time) ([]calendar.Event, []string)
 }
 
+// EventWriter creates events in the calendar the agent writes to.
+type EventWriter interface {
+	Insert(ctx context.Context, e calendar.NewEvent) (created bool, err error)
+}
+
 type Server struct {
 	store  *store.Store
 	token  string
 	logger *slog.Logger
 	limit  *limiter
 	cal    Collector
+	writer EventWriter
 	loc    *time.Location
 	now    func() time.Time
 
@@ -38,7 +44,8 @@ type Options struct {
 	Store    *store.Store
 	Token    string
 	Logger   *slog.Logger
-	Calendar Collector // nil: /v1/week reports calendars as not configured
+	Calendar Collector   // nil: /v1/week reports calendars as not configured
+	Writer   EventWriter // nil: /v1/events reports the write calendar as not configured
 	Location *time.Location
 	Now      func() time.Time // defaults to time.Now
 	Parser   PhraseParser     // nil: /v1/parse reports the LLM as not configured
@@ -55,6 +62,7 @@ func New(o Options) http.Handler {
 		logger: o.Logger,
 		limit:  newLimiter(o.RatePerSec, o.Burst),
 		cal:    o.Calendar,
+		writer: o.Writer,
 		loc:    o.Location,
 		now:    o.Now,
 
@@ -78,6 +86,9 @@ func New(o Options) http.Handler {
 	v1.HandleFunc("POST /v1/checkin", s.postCheckin)
 	v1.HandleFunc("POST /v1/parse", s.postParse)
 	v1.HandleFunc("GET /v1/llm", s.getLLM)
+	v1.HandleFunc("POST /v1/check", s.postCheck)
+	v1.HandleFunc("POST /v1/events", s.postEvents)
+	v1.HandleFunc("POST /v1/items", s.postItems)
 	mux.Handle("/v1/", s.rateLimit(s.auth(v1)))
 
 	return mux

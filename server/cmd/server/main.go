@@ -143,6 +143,19 @@ func serve(cfg config.Config, st *store.Store, logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	if cfg.CalendarWrite != "" {
+		key, err := os.ReadFile(cfg.GoogleKeyFile)
+		if err != nil {
+			return fmt.Errorf("read GOOGLE_SA_KEY_FILE: %w", err)
+		}
+		w, err := calendar.NewGoogleWriter(context.Background(), key, cfg.CalendarWrite, cfg.Location)
+		if err != nil {
+			return err
+		}
+		opts.Writer = w
+	} else {
+		logger.Warn("CALENDAR_WRITE_ID is not set: writing events is off")
+	}
 	if client != nil {
 		opts.Parser = &parse.Parser{LLM: client, Loc: cfg.Location, Now: time.Now}
 		opts.LLM = info

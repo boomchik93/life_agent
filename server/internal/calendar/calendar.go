@@ -17,6 +17,9 @@ type Event struct {
 	End       time.Time `json:"end"`
 	AllDay    bool      `json:"all_day"`
 	Recurring bool      `json:"recurring"`
+	// Category is set for events the agent wrote (kept in the event itself);
+	// empty for everything else, which gets its category from the calendar.
+	Category string `json:"category,omitempty"`
 }
 
 // Provider returns the events overlapping [from, to), with recurring series

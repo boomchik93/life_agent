@@ -141,14 +141,17 @@ class RiskGrid extends StatelessWidget {
       ('Нет отдыха', risks.noRest),
       ('Состояние', risks.state),
     ];
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 8,
-      crossAxisSpacing: 8,
-      childAspectRatio: 2.6,
-      children: [for (final (t, r) in items) RiskIndicator(title: t, risk: r)],
-    );
+    // Rows that grow with the text size; a fixed grid ratio clipped large fonts.
+    Widget row(int i) => IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: RiskIndicator(title: items[i].$1, risk: items[i].$2)),
+              const SizedBox(width: 8),
+              Expanded(child: RiskIndicator(title: items[i + 1].$1, risk: items[i + 1].$2)),
+            ],
+          ),
+        );
+    return Column(children: [row(0), const SizedBox(height: 8), row(2)]);
   }
 }

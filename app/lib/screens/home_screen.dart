@@ -4,9 +4,11 @@ import '../controller.dart';
 import '../format.dart';
 import '../models.dart';
 import '../widgets/error_view.dart';
+import '../widgets/composer.dart';
 import '../widgets/risk_indicator.dart';
 import '../widgets/week_view.dart';
 import 'checkin_screen.dart';
+import 'models_screen.dart';
 import 'settings_screen.dart';
 import 'week_screen.dart';
 
@@ -74,6 +76,12 @@ class _HomeScreenState extends State<HomeScreen> {
     // The controller notifies on save, which reloads the week.
   }
 
+  void _openModels() {
+    final api = _c.api;
+    if (api == null) return;
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => ModelsScreen(api: api)));
+  }
+
   void _openWeek() {
     final api = _c.api;
     if (api == null) return;
@@ -90,7 +98,12 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(tooltip: 'Настройки', icon: const Icon(Icons.settings), onPressed: _openSettings),
         ],
       ),
-      body: _body(),
+      body: Column(
+        children: [
+          Expanded(child: _body()),
+          if (_c.api != null) Composer(api: _c.api!, now: widget.now, onOpenModels: _openModels, onSaved: _reload),
+        ],
+      ),
     );
   }
 

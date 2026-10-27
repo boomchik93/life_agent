@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Deploys life-agent to the cv-prod server. Run from the Mac.
 #   deploy.sh bootstrap   one-time: user, directories, systemd units, server .env
+#   deploy.sh env         rewrite the server .env from the local one, restart the service
 #   deploy.sh release     build linux binary, install it, restart the service
 #   deploy.sh nginx       one-time: nginx site + Let's Encrypt certificate
 # Nothing outside /opt/life-agent, the life-agent systemd units and the
@@ -14,12 +15,21 @@ DIR=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(dirname "$DIR")
 
 # Only these keys go to the server; extend as later stages need more.
-SERVER_ENV_KEYS='ACCESS_TOKEN|TIMEZONE|CALENDAR_IDS|ICS_URL'
+SERVER_ENV_KEYS='ACCESS_TOKEN|TIMEZONE|CALENDAR_IDS|ICS_URL|OPENROUTER_API_KEY|CALENDAR_WRITE_ID'
 SA_KEY_LOCAL="$ROOT/secrets/sa-key.json"
 
 build() {
   (cd "$ROOT/server" && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 \
     go build -trimpath -ldflags='-s -w' -o bin/life-agent-linux ./cmd/server)
+}
+
+# The server .env: only the whitelisted keys, written with a tight umask.
+push_env() {
+  { grep -E "^($SERVER_ENV_KEYS)=" "$ROOT/.env"; echo "GOOGLE_SA_KEY_FILE=$REMOTE/secrets/sa-key.json"; } | ssh "$HOST" "set -e
+    umask 077
+    cat > $REMOTE/.env
+    chown lifeagent:lifeagent $REMOTE/.env
+    chmod 600 $REMOTE/.env"
 }
 
 bootstrap() {
@@ -34,11 +44,8 @@ bootstrap() {
     cat > $REMOTE/secrets/sa-key.json
     chown lifeagent:lifeagent $REMOTE/secrets/sa-key.json
     chmod 600 $REMOTE/secrets/sa-key.json" < "$SA_KEY_LOCAL"
-  { grep -E "^($SERVER_ENV_KEYS)=" "$ROOT/.env"; echo "GOOGLE_SA_KEY_FILE=$REMOTE/secrets/sa-key.json"; } | ssh "$HOST" "set -e
-    umask 077
-    cat > $REMOTE/.env
-    chown lifeagent:lifeagent $REMOTE/.env
-    chmod 600 $REMOTE/.env
+  push_env
+  ssh "$HOST" "set -e
     systemctl daemon-reload"
 }
 
@@ -70,7 +77,8 @@ nginx_site() {
 
 case "${1:-}" in
   bootstrap) bootstrap ;;
+  env) push_env; ssh "$HOST" "systemctl restart life-agent.service; sleep 1; systemctl is-active life-agent.service" ;;
   release) release ;;
   nginx) nginx_site ;;
-  *) echo "usage: $0 bootstrap|release|nginx" >&2; exit 2 ;;
+  *) echo "usage: $0 bootstrap|env|release|nginx" >&2; exit 2 ;;
 esac

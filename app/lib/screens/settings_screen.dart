@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api.dart';
 import '../controller.dart';
 import '../settings.dart';
+import 'models_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key, required this.controller});
@@ -119,6 +120,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Expanded(child: Text(_result!)),
                 ]),
               ),
+            const Divider(height: 40),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.psychology),
+              title: const Text('Модели'),
+              subtitle: Text(widget.controller.api == null
+                  ? 'Сначала сохрани адрес и токен'
+                  : 'Разбор фраз, совет, резервные модели, остаток запросов'),
+              trailing: const Icon(Icons.chevron_right),
+              enabled: widget.controller.api != null,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => ModelsScreen(api: widget.controller.api!)),
+              ),
+            ),
           ],
         ),
       ),

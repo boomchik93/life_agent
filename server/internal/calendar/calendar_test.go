@@ -394,3 +394,70 @@ func TestAggregator(t *testing.T) {
 		t.Errorf("warnings %v", warn)
 	}
 }
+
+func TestEventIDIsValidAndStable(t *testing.T) {
+	a, b := EventID("key-1"), EventID("key-1")
+	if a != b || a == EventID("key-2") {
+		t.Fatalf("id must follow the key: %q %q", a, b)
+	}
+	if len(a) < 5 || len(a) > 1024 {
+		t.Fatalf("bad length %d", len(a))
+	}
+	for _, r := range a {
+		if !(r >= '0' && r <= '9' || r >= 'a' && r <= 'v') {
+			t.Fatalf("character %q is not base32hex", r)
+		}
+	}
+}
+
+func TestWriterInsert(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Yekaterinburg")
+	var status = 200
+	var got map[string]any
+	var path string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path = r.URL.EscapedPath()
+		json.NewDecoder(r.Body).Decode(&got)
+		w.WriteHeader(status)
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+	w := &Writer{client: srv.Client(), baseURL: srv.URL, calendarID: "me@example.com", loc: loc}
+	ev := NewEvent{ID: "abcde", Title: "КВН", Category: "hobby", Recurrence: "FREQ=WEEKLY;BYDAY=FR",
+		Start: time.Date(2026, 10, 30, 18, 0, 0, 0, loc), End: time.Date(2026, 10, 30, 20, 0, 0, 0, loc)}
+
+	created, err := w.Insert(context.Background(), ev)
+	if err != nil || !created {
+		t.Fatalf("created=%v err=%v", created, err)
+	}
+	if path != "/calendars/me@example.com/events" && path != "/calendars/me%40example.com/events" {
+		t.Errorf("path %q", path)
+	}
+	start := got["start"].(map[string]any)
+	if start["dateTime"] != "2026-10-30T18:00:00+05:00" || start["timeZone"] != "Asia/Yekaterinburg" {
+		t.Errorf("start %v", start)
+	}
+	if got["id"] != "abcde" || got["summary"] != "КВН" {
+		t.Errorf("body %v", got)
+	}
+	if rec := got["recurrence"].([]any); rec[0] != "RRULE:FREQ=WEEKLY;BYDAY=FR" {
+		t.Errorf("recurrence %v", rec)
+	}
+	priv := got["extendedProperties"].(map[string]any)["private"].(map[string]any)
+	if priv["category"] != "hobby" {
+		t.Errorf("category not kept: %v", priv)
+	}
+
+	status = 409
+	if created, err = w.Insert(context.Background(), ev); err != nil || created {
+		t.Errorf("duplicate id: created=%v err=%v", created, err)
+	}
+	status = 403
+	if _, err = w.Insert(context.Background(), ev); !errors.Is(err, ErrNoWriteAccess) {
+		t.Errorf("403 must be ErrNoWriteAccess, got %v", err)
+	}
+	status = 500
+	if _, err = w.Insert(context.Background(), ev); err == nil || errors.Is(err, ErrNoWriteAccess) {
+		t.Errorf("500 must be a plain error, got %v", err)
+	}
+}

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'controller.dart';
 import 'screens/home_screen.dart';
@@ -18,6 +19,9 @@ class LifeAgentApp extends StatelessWidget {
     return MaterialApp(
       title: 'Жизнь',
       debugShowCheckedModeBanner: false,
+      locale: const Locale('ru'),
+      supportedLocales: const [Locale('ru')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       theme: ThemeData(colorSchemeSeed: Colors.teal, useMaterial3: true),
       darkTheme: ThemeData(colorSchemeSeed: Colors.teal, useMaterial3: true, brightness: Brightness.dark),
       home: HomeRoot(controller: controller),

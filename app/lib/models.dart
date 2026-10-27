@@ -27,6 +27,8 @@ class Wall {
 
   bool isBefore(Wall other) => _utc.isBefore(other._utc);
 
+  int minutesSince(Wall other) => _utc.difference(other._utc).inMinutes;
+
   int get weekday => _utc.weekday; // 1 = Monday
 
   String get hm =>

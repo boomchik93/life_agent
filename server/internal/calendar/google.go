@@ -47,6 +47,9 @@ type gEvent struct {
 	RecurringEventID string `json:"recurringEventId"`
 	Start            gTime  `json:"start"`
 	End              gTime  `json:"end"`
+	Extended         struct {
+		Private map[string]string `json:"private"`
+	} `json:"extendedProperties"`
 }
 
 type gTime struct {
@@ -157,6 +160,7 @@ func (g *Google) convert(ge gEvent, calID, calName string) (Event, error) {
 		Calendar:  calName,
 		Title:     ge.Summary,
 		Recurring: ge.RecurringEventID != "",
+		Category:  ge.Extended.Private[categoryProperty],
 	}
 	if ev.Calendar == "" {
 		ev.Calendar = calID

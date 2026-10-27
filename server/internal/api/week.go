@@ -72,10 +72,12 @@ func (s *Server) assess(events []calendar.Event, from, to time.Time) (load.Asses
 		RestTracked: cats.RestTracked(),
 	}
 	for _, e := range events {
-		in.Events = append(in.Events, load.Event{
-			Start: e.Start, End: e.End, AllDay: e.AllDay,
-			Category: cats.Of(e.Source, e.Calendar),
-		})
+		cat := cats.Of(e.Source, e.Calendar)
+		// An event the agent wrote carries the category the user confirmed.
+		if c := load.Category(e.Category); c.Valid() {
+			cat = c
+		}
+		in.Events = append(in.Events, load.Event{Start: e.Start, End: e.End, AllDay: e.AllDay, Category: cat})
 	}
 	for _, c := range stored {
 		in.Checkins = append(in.Checkins, load.Checkin{Date: c.Date, Energy: c.Energy, Mood: c.Mood, SleepHours: c.SleepHours})
