@@ -108,6 +108,7 @@ const (
 // is refused, so nothing like a title can travel in there.
 var extraKeys = map[string]extraKind{
 	"temp_c": numberKey, "precip_mm": numberKey, "daylight_hours": numberKey,
+	"sunrise_h": numberKey, "sunset_h": numberKey,
 	"commits": numberKey, "prs": numberKey, "reviews": numberKey, "solved": numberKey,
 	"hours_total": numberKey, "games": numberKey,
 	"genres": wordsKey,

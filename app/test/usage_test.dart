@@ -35,6 +35,13 @@ class Server {
   }
 }
 
+/// Scrolls the long sources list until the finder is fully on screen.
+Future<void> reveal(WidgetTester t, Finder f) async {
+  await t.scrollUntilVisible(f, 200, scrollable: find.byType(Scrollable).first);
+  await t.ensureVisible(f);
+  await t.pumpAndSettle();
+}
+
 Map<String, int> minutes(UsageDay d) => {for (final r in d.rows) r.category: r.minutes};
 
 class FakeUsage implements UsageSource {
@@ -338,7 +345,7 @@ void main() {
 
     testWidgets('with the access granted the sums can be sent at once', (t) async {
       await open(t);
-      await t.scrollUntilVisible(find.text('Отправить сейчас'), 300, scrollable: find.byType(Scrollable).first);
+      await reveal(t, find.text('Отправить сейчас'));
       expect(find.text('Доступ к истории использования выдан.'), findsOneWidget);
       expect(find.text('Отправить сейчас'), findsOneWidget);
     });
@@ -353,7 +360,7 @@ void main() {
         home: SourcesScreen(api: api, storage: MemoryStorage(), usage: usage, scheduler: FakeScheduler()),
       ));
       await t.pumpAndSettle();
-      await t.scrollUntilVisible(find.text('Открыть настройки доступа'), 300, scrollable: find.byType(Scrollable).first);
+      await reveal(t, find.text('Открыть настройки доступа'));
       expect(find.textContaining('выдай доступ вручную'), findsOneWidget);
       await t.tap(find.text('Открыть настройки доступа'));
       expect(usage.opened, 1);
@@ -378,11 +385,11 @@ void main() {
 
     testWidgets('delete everything needs the word typed', (t) async {
       await open(t);
-      await t.scrollUntilVisible(find.text('Удалить всё'), 300, scrollable: find.byType(Scrollable).first);
+      await reveal(t, find.text('Удалить всё'));
       await t.tap(find.text('Удалить всё'));
       await t.pumpAndSettle();
       expect(t.widget<FilledButton>(find.widgetWithText(FilledButton, 'Удалить всё')).onPressed, isNull);
-      await t.enterText(find.byType(TextField), 'удалить');
+      await t.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), 'удалить');
       await t.pump();
       await t.tap(find.widgetWithText(FilledButton, 'Удалить всё'));
       await t.pumpAndSettle();
@@ -391,16 +398,46 @@ void main() {
 
     testWidgets('export is copied', (t) async {
       await open(t);
-      await t.scrollUntilVisible(find.text('Экспорт всех данных'), 300, scrollable: find.byType(Scrollable).first);
+      await reveal(t, find.text('Экспорт всех данных'));
       await t.tap(find.text('Экспорт всех данных'));
       await t.pumpAndSettle();
       expect(clipboard.single, '{"tables":{}}');
       expect(find.textContaining('Экспорт скопирован'), findsOneWidget);
     });
 
+    testWidgets('the city for the weather is shown and saved', (t) async {
+      await open(t);
+      api.city = 'Пермь';
+      await t.pumpWidget(const SizedBox());
+      api = FakeApi()..city = 'Пермь';
+      await t.pumpWidget(MaterialApp(
+        locale: const Locale('ru'),
+        supportedLocales: const [Locale('ru')],
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
+        home: SourcesScreen(api: api, storage: MemoryStorage(), usage: FakeUsage(), scheduler: FakeScheduler()),
+      ));
+      await t.pumpAndSettle();
+      await reveal(t, find.text('Город для погоды'));
+      expect(find.widgetWithText(TextField, 'Пермь'), findsOneWidget);
+      await t.enterText(find.widgetWithText(TextField, 'Пермь'), '  Екатеринбург ');
+      await t.tap(find.text('Сохранить'));
+      await t.pumpAndSettle();
+      expect(api.citySaved, ['Екатеринбург']);
+      expect(find.textContaining('Город сохранён'), findsOneWidget);
+    });
+
+    testWidgets('an empty city is not sent', (t) async {
+      await open(t);
+      await reveal(t, find.text('Город для погоды'));
+      await t.tap(find.text('Сохранить'));
+      await t.pumpAndSettle();
+      expect(api.citySaved, isEmpty);
+      expect(find.text('Введи название города.'), findsOneWidget);
+    });
+
     testWidgets('names to the model: a switch, saved at once', (t) async {
       await open(t);
-      await t.scrollUntilVisible(find.textContaining('Названия приложений'), 300, scrollable: find.byType(Scrollable).first);
+      await reveal(t, find.textContaining('Названия приложений'));
       await t.tap(find.textContaining('Названия приложений'));
       await t.pumpAndSettle();
       expect(api.categorizeLlmSaved, [false]);

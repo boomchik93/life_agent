@@ -186,6 +186,9 @@ class FakeApi implements LifeApi {
   final deletedSources = <String>[];
   bool allDeleted = false;
   String exportText = '{"tables":{}}';
+  String city = '';
+  final citySaved = <String>[];
+  Object? cityError;
   bool categorizeLlmOn = true;
   final categorizeLlmSaved = <bool>[];
 
@@ -232,6 +235,16 @@ class FakeApi implements LifeApi {
 
   @override
   Future<void> deleteAllData() async => allDeleted = true;
+
+  @override
+  Future<String> weatherCity() async => city;
+
+  @override
+  Future<void> saveWeatherCity(String c) async {
+    if (cityError != null) throw cityError!;
+    citySaved.add(c.trim());
+    city = c.trim();
+  }
 
   @override
   Future<bool> categorizeLlm() async => categorizeLlmOn;

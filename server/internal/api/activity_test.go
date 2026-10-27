@@ -304,3 +304,15 @@ func dumpDB(t *testing.T, st *store.Store) string {
 	}
 	return all.String()
 }
+
+func TestWeatherSettingIsChecked(t *testing.T) {
+	h, _, _ := activityServer(t)
+	if code, body := send(h, "PUT", "/v1/settings", `{"weather":{"city":"Екатеринбург"}}`); code != 200 {
+		t.Fatalf("%d %s", code, body)
+	}
+	for _, bad := range []string{`{"weather":{"city":""}}`, `{"weather":{"city":"x","lat":100,"lon":0}}`, `{"weather":{"city":"x","extra":1}}`, `{"weather":"Москва"}`} {
+		if code, _ := send(h, "PUT", "/v1/settings", bad); code != 400 {
+			t.Errorf("%s: %d", bad, code)
+		}
+	}
+}

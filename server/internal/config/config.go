@@ -6,10 +6,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"filippo.io/age"
+)
+
+var (
+	steamIDRe = regexp.MustCompile(`^\d{17}$`)
+	loginRe   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,38}$`)
 )
 
 const minTokenLen = 43 // 32 random bytes in base64url; hex of 32 bytes is 64
@@ -27,6 +33,13 @@ type Config struct {
 	ICSURL        string   // optional class-schedule feed
 
 	OpenRouterKey string // empty: the LLM features report "not configured"
+
+	// Activity sources read by the server (all optional; a source without its
+	// settings is simply off). Keys live only here, never in the database.
+	SteamKey, SteamID string // Web API key and SteamID64 (17 digits)
+	GitHubToken       string // fine-grained, read-only
+	GitHubLogin       string
+	LeetCodeUser      string // empty: the optional LeetCode path is off
 
 	// AgeRecipient is the public key (age1...) backups are encrypted to. The
 	// private key stays on the Mac, so the server cannot read its own backups.
@@ -57,6 +70,26 @@ func Load(getenv func(string) string) (Config, error) {
 	c.ICSURL = getenv("ICS_URL")
 	c.CalendarWrite = strings.TrimSpace(getenv("CALENDAR_WRITE_ID"))
 	c.OpenRouterKey = getenv("OPENROUTER_API_KEY")
+	c.SteamKey = strings.TrimSpace(getenv("STEAM_API_KEY"))
+	c.SteamID = strings.TrimSpace(getenv("STEAM_ID"))
+	if (c.SteamKey == "") != (c.SteamID == "") {
+		return Config{}, errors.New("STEAM_API_KEY and STEAM_ID go together")
+	}
+	if c.SteamID != "" && !steamIDRe.MatchString(c.SteamID) {
+		return Config{}, errors.New("STEAM_ID must be a SteamID64: 17 digits")
+	}
+	c.GitHubToken = strings.TrimSpace(getenv("GITHUB_TOKEN"))
+	c.GitHubLogin = strings.TrimSpace(getenv("GITHUB_LOGIN"))
+	if (c.GitHubToken == "") != (c.GitHubLogin == "") {
+		return Config{}, errors.New("GITHUB_TOKEN and GITHUB_LOGIN go together")
+	}
+	if c.GitHubLogin != "" && !loginRe.MatchString(c.GitHubLogin) {
+		return Config{}, errors.New("GITHUB_LOGIN is not a valid login")
+	}
+	c.LeetCodeUser = strings.TrimSpace(getenv("LEETCODE_USER"))
+	if c.LeetCodeUser != "" && !loginRe.MatchString(c.LeetCodeUser) {
+		return Config{}, errors.New("LEETCODE_USER is not a valid login")
+	}
 	c.AgeRecipient = strings.TrimSpace(getenv("AGE_RECIPIENT"))
 	if c.AgeRecipient != "" {
 		if _, err := age.ParseX25519Recipient(c.AgeRecipient); err != nil {

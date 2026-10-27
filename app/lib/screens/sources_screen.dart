@@ -34,6 +34,7 @@ class _SourcesScreenState extends State<SourcesScreen> with WidgetsBindingObserv
   List<SourceInfo>? _sources;
   Object? _loadError;
   bool _phoneOn = false, _access = false, _llm = true, _busy = false;
+  final _city = TextEditingController();
 
   @override
   void initState() {
@@ -45,6 +46,7 @@ class _SourcesScreenState extends State<SourcesScreen> with WidgetsBindingObserv
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _city.dispose();
     super.dispose();
   }
 
@@ -60,7 +62,9 @@ class _SourcesScreenState extends State<SourcesScreen> with WidgetsBindingObserv
       final phoneOn = await widget.storage.usageSyncEnabled();
       final access = await widget.usage.hasAccess();
       final llm = await widget.api.categorizeLlm();
+      final city = await widget.api.weatherCity();
       if (!mounted) return;
+      if (_city.text.isEmpty) _city.text = city;
       setState(() {
         _sources = sources;
         _phoneOn = phoneOn;
@@ -152,6 +156,16 @@ class _SourcesScreenState extends State<SourcesScreen> with WidgetsBindingObserv
         await _load();
       });
 
+  Future<void> _saveCity() => _guard(() async {
+        final city = _city.text.trim();
+        if (city.isEmpty) {
+          _say('Введи название города.', ok: false);
+          return;
+        }
+        await widget.api.saveWeatherCity(city);
+        _say('Город сохранён. Погода обновится в течение 15 минут.');
+      });
+
   Future<void> _setLlm(bool on) => _guard(() async {
         await widget.api.saveCategorizeLlm(on);
         setState(() => _llm = on);
@@ -195,6 +209,24 @@ class _SourcesScreenState extends State<SourcesScreen> with WidgetsBindingObserv
                         'На сервер уходят только дневные суммы: без названий окон, адресов и заголовков.'),
                     const SizedBox(height: 8),
                     for (final s in sources) _sourceTile(s, theme),
+                    const Divider(height: 32),
+                    Text('Город для погоды', style: theme.textTheme.titleSmall),
+                    const SizedBox(height: 8),
+                    Row(children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _city,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: const InputDecoration(labelText: 'Город', border: OutlineInputBorder()),
+                          onSubmitted: (_) => _saveCity(),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton(onPressed: _busy ? null : _saveCity, child: const Text('Сохранить')),
+                    ]),
+                    const SizedBox(height: 4),
+                    Text('Погода нужна, чтобы ставить спорт в сухое светлое время. Название города уходит в Open-Meteo.',
+                        style: theme.textTheme.bodySmall),
                     const Divider(height: 32),
                     Text('Доступ телефона', style: theme.textTheme.titleSmall),
                     const SizedBox(height: 6),

@@ -15,6 +15,7 @@ import (
 	"lifeagent/internal/load"
 	"lifeagent/internal/plan"
 	"lifeagent/internal/store"
+	"lifeagent/internal/weather"
 )
 
 const maxBody = 64 << 10
@@ -182,6 +183,8 @@ func validateSetting(key string, raw json.RawMessage) error {
 		_, err = load.ParseThresholds(raw)
 	case settingCalendarCategories:
 		_, err = load.ParseCalendarCategories(raw)
+	case weather.SettingKey:
+		_, err = weather.ParseLocation(raw)
 	case settingCategorize:
 		_, err = parseCategorizeSettings(raw)
 	case settingAdvice:

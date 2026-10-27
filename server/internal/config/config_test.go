@@ -23,6 +23,15 @@ func TestLoad(t *testing.T) {
 		{"short token", map[string]string{"ACCESS_TOKEN": "short"}, true},
 		{"bad timezone", map[string]string{"ACCESS_TOKEN": good, "TIMEZONE": "Mars/Base"}, true},
 		{"calendars without key", map[string]string{"ACCESS_TOKEN": good, "CALENDAR_IDS": "a@b"}, true},
+		{"steam ok", map[string]string{"ACCESS_TOKEN": good, "STEAM_API_KEY": "k", "STEAM_ID": "76561198000000000"}, false},
+		{"steam key without id", map[string]string{"ACCESS_TOKEN": good, "STEAM_API_KEY": "k"}, true},
+		{"steam id too short", map[string]string{"ACCESS_TOKEN": good, "STEAM_API_KEY": "k", "STEAM_ID": "12345"}, true},
+		{"github ok", map[string]string{"ACCESS_TOKEN": good, "GITHUB_TOKEN": "t", "GITHUB_LOGIN": "octo-cat"}, false},
+		{"github token without login", map[string]string{"ACCESS_TOKEN": good, "GITHUB_TOKEN": "t"}, true},
+		{"github bad login", map[string]string{"ACCESS_TOKEN": good, "GITHUB_TOKEN": "t", "GITHUB_LOGIN": "bad login!"}, true},
+		{"leetcode bad user", map[string]string{"ACCESS_TOKEN": good, "LEETCODE_USER": "../x"}, true},
+		{"age ok", map[string]string{"ACCESS_TOKEN": good, "AGE_RECIPIENT": "age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p"}, false},
+		{"age bad", map[string]string{"ACCESS_TOKEN": good, "AGE_RECIPIENT": "not-a-key"}, true},
 		{"calendars with key", map[string]string{"ACCESS_TOKEN": good, "CALENDAR_IDS": "a@b", "GOOGLE_SA_KEY_FILE": "k.json"}, false},
 	}
 	for _, tt := range tests {

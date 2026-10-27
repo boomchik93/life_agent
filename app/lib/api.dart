@@ -84,6 +84,10 @@ abstract class LifeApi {
   /// Deletes all data on the server (the settings stay).
   Future<void> deleteAllData();
 
+  /// The city for the weather forecast; empty when none is set.
+  Future<String> weatherCity();
+  Future<void> saveWeatherCity(String city);
+
   /// Whether names of unknown apps may go to the language model.
   Future<bool> categorizeLlm();
   Future<void> saveCategorizeLlm(bool on);
@@ -376,6 +380,20 @@ class HttpLifeApi implements LifeApi {
   @override
   Future<void> deleteAllData() async {
     await _send('DELETE', _uri('/v1/data'), body: {'confirm': 'delete-all-data'});
+  }
+
+  @override
+  Future<String> weatherCity() async {
+    final j = await _send('GET', _uri('/v1/settings'));
+    final w = j['weather'];
+    return w is Map ? (w['city'] as String? ?? '') : '';
+  }
+
+  @override
+  Future<void> saveWeatherCity(String city) async {
+    await _send('PUT', _uri('/v1/settings'), body: {
+      'weather': {'city': city.trim()},
+    });
   }
 
   @override

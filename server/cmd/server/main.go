@@ -14,13 +14,16 @@ import (
 	"time"
 	_ "time/tzdata" // zone names in feeds must resolve even without system tzdata
 
+	"lifeagent/internal/activity"
 	"lifeagent/internal/advice"
 	"lifeagent/internal/api"
 	"lifeagent/internal/calendar"
 	"lifeagent/internal/config"
 	"lifeagent/internal/llm"
 	"lifeagent/internal/parse"
+	"lifeagent/internal/steam"
 	"lifeagent/internal/store"
+	"lifeagent/internal/weather"
 )
 
 const backupKeep = 14 * 24 * time.Hour
@@ -178,6 +181,7 @@ func serve(cfg config.Config, st *store.Store, logger *slog.Logger) error {
 	defer stop()
 	go prepareAdviceLoop(ctx, app, logger)
 	go pruneLoop(ctx, st, cfg.Location, logger)
+	activity.Loop(ctx, collectors(cfg, st), st, time.Now, logger)
 
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
@@ -244,4 +248,14 @@ func pruneLoop(ctx context.Context, st *store.Store, loc *time.Location, logger 
 			prune()
 		}
 	}
+}
+
+// collectors lists the sources the server reads itself. A source without its
+// settings is not started; the weather needs only the city entered in the app.
+func collectors(cfg config.Config, st *store.Store) []activity.Schedule {
+	list := []activity.Schedule{{Collector: weather.New(st, cfg.Location), Every: weather.Every}}
+	if cfg.SteamKey != "" {
+		list = append(list, activity.Schedule{Collector: steam.New(cfg.SteamKey, cfg.SteamID, st, cfg.Location), Every: steam.Every})
+	}
+	return list
 }
