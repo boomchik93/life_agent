@@ -2,6 +2,7 @@ import 'package:life_agent/api.dart';
 import 'package:life_agent/card.dart';
 import 'package:life_agent/llm_info.dart';
 import 'package:life_agent/models.dart';
+import 'package:life_agent/plan.dart';
 import 'package:life_agent/settings.dart';
 import 'package:life_agent/slot.dart';
 
@@ -144,6 +145,26 @@ class FakeApi implements LifeApi {
     );
   }
 
+  PlanData planResult = samplePlan();
+  Object? planError;
+  Object? applyError;
+  int plansBuilt = 0;
+  final applied = <({PlanData plan, String key})>[];
+
+  @override
+  Future<PlanData> planWeek() async {
+    plansBuilt++;
+    if (planError != null) throw planError!;
+    return planResult;
+  }
+
+  @override
+  Future<PlanApplied> applyPlan(PlanData plan, {required String key}) async {
+    if (applyError != null) throw applyError!;
+    applied.add((plan: plan, key: key));
+    return PlanApplied(count: plan.placed.length, duplicate: false);
+  }
+
   @override
   Future<void> ping() async {
     if (weekError != null) throw weekError!;
@@ -203,5 +224,31 @@ CheckResult sampleCheck({
     ok: ok, needsConfirm: needsConfirm, category: category, categorySource: source,
     askCategory: askCategory, overlaps: overlaps, reasons: reasons, worsened: worsened,
     before: before ?? green(), after: after ?? green(),
+  );
+}
+
+PlanData samplePlan({
+  List<PlanChunk>? placed,
+  List<PlanUnplaced> unplaced = const [],
+  List<PlanDeferred> deferred = const [],
+  List<String> violations = const [],
+  Risks? before,
+  Risks? after,
+}) {
+  Risks g(String overload) => Risks(sleep: risk('gray'), overload: risk(overload), noRest: risk('green'), state: risk('gray'));
+  return PlanData(
+    from: const Wall(2026, 10, 26),
+    to: const Wall(2026, 11, 2),
+    placed: placed ??
+        const [
+          PlanChunk(itemId: 7, title: 'Курсовая', category: 'study', start: Wall(2026, 10, 28, 13), end: Wall(2026, 10, 28, 15)),
+          PlanChunk(itemId: 7, title: 'Курсовая', category: 'study', start: Wall(2026, 10, 28, 15, 15), end: Wall(2026, 10, 28, 17, 15)),
+          PlanChunk(itemId: 7, title: 'Курсовая', category: 'study', start: Wall(2026, 10, 29, 9), end: Wall(2026, 10, 29, 11)),
+        ],
+    unplaced: unplaced,
+    deferred: deferred,
+    before: before ?? g('green'),
+    after: after ?? g('yellow'),
+    violations: violations,
   );
 }

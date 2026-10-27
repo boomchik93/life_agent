@@ -148,7 +148,7 @@ class _VerdictScreenState extends State<VerdictScreen> {
         Text('Нагрузка недели', style: theme.textTheme.titleSmall),
         const SizedBox(height: 6),
         for (final key in _riskTitles.keys)
-          _RiskChange(
+          RiskChange(
             title: _riskTitles[key]!,
             before: _risk(r.before, key),
             after: _risk(r.after, key),
@@ -275,39 +275,6 @@ class _CategoryCard extends StatelessWidget {
               ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _RiskChange extends StatelessWidget {
-  const _RiskChange({required this.title, required this.before, required this.after, required this.worsened});
-
-  final String title;
-  final Risk before, after;
-  final bool worsened;
-
-  @override
-  Widget build(BuildContext context) {
-    final b = Theme.of(context).brightness;
-    Widget state(Risk r) => Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(riskIcon(r.color), color: riskColor(r.color, b), size: 20),
-          const SizedBox(width: 4),
-          Text(riskLabel(r.color)),
-        ]);
-    return Semantics(
-      label: '$title: было ${riskLabel(before.color)}, станет ${riskLabel(after.color)}',
-      excludeSemantics: true,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(children: [
-          Expanded(
-            child: Text(title, style: worsened ? const TextStyle(fontWeight: FontWeight.bold) : null),
-          ),
-          state(before),
-          const Padding(padding: EdgeInsets.symmetric(horizontal: 6), child: Icon(Icons.arrow_forward, size: 16)),
-          state(after),
-        ]),
       ),
     );
   }

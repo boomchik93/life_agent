@@ -27,7 +27,7 @@ func TestMigrateIdempotent(t *testing.T) {
 	}
 	defer s2.Close()
 	var n int
-	if err := s2.DB.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&n); err != nil || n != 4 {
+	if err := s2.DB.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&n); err != nil || n != 5 {
 		t.Fatalf("migrations applied = %d, err %v", n, err)
 	}
 }
@@ -193,5 +193,63 @@ func TestCategoryMemory(t *testing.T) {
 	s.DB.QueryRow(`SELECT confirmations FROM category_memory WHERE name = 'квн'`).Scan(&n)
 	if n != 1 {
 		t.Fatalf("a changed answer restarts the count, got %d", n)
+	}
+}
+
+func TestListAndPatchItems(t *testing.T) {
+	s, _ := open(t)
+	dur, dl := 120, "2026-10-30"
+	task := func(key, status string) Item {
+		return Item{Kind: "task", Title: key, Category: "study", DurationMin: &dur, Deadline: &dl, Status: status, IdempotencyKey: key}
+	}
+	a, _, _ := s.AddItem(task("a-task-key", "confirmed"))
+	s.AddItem(task("b-task-key", "done"))
+	ev := "e1"
+	s.AddItem(Item{Kind: "event", Title: "e", Category: "hobby", Status: "written", IdempotencyKey: "event-key", EventID: &ev})
+
+	open, err := s.Items("task", "open")
+	if err != nil || len(open) != 1 || open[0].ID != a.ID {
+		t.Fatalf("open tasks = %+v err %v", open, err)
+	}
+	if all, _ := s.Items("", ""); len(all) != 3 {
+		t.Fatalf("all items = %d", len(all))
+	}
+	done := "done"
+	got, err := s.PatchItem(a.ID, ItemPatch{Status: &done})
+	if err != nil || got.Status != "done" || got.Title != "a-task-key" {
+		t.Fatalf("patch = %+v err %v", got, err)
+	}
+	if open, _ := s.Items("task", "open"); len(open) != 0 {
+		t.Fatalf("a done task is not open: %+v", open)
+	}
+	if _, err := s.PatchItem(999, ItemPatch{Status: &done}); err != ErrNotFound {
+		t.Fatalf("missing id: %v", err)
+	}
+}
+
+func TestPlanChunks(t *testing.T) {
+	s, _ := open(t)
+	dur, dl := 120, "2026-10-30"
+	it, _, _ := s.AddItem(Item{Kind: "task", Title: "t", Category: "study", DurationMin: &dur, Deadline: &dl, Status: "confirmed", IdempotencyKey: "task-key-1"})
+	c := PlanChunk{ItemID: it.ID, ApplyKey: "apply-1", Seq: 0, EventID: "ev0", Start: "2026-10-27T13:00:00+05:00", End: "2026-10-27T14:00:00+05:00", Minutes: 60}
+	if err := s.AddChunk(c); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddChunk(c); err != nil { // the same piece again is ignored
+		t.Fatal(err)
+	}
+	c.Seq, c.EventID = 1, "ev1"
+	if err := s.AddChunk(c); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.ChunksByKey("apply-1")
+	if err != nil || len(got) != 2 {
+		t.Fatalf("chunks = %+v err %v", got, err)
+	}
+	if m, _ := s.PlannedMinutes(""); m[it.ID] != 120 {
+		t.Fatalf("planned = %v", m)
+	}
+	if m, _ := s.PlannedMinutes("apply-1"); m[it.ID] != 0 {
+		t.Fatalf("a retry must not count its own pieces: %v", m)
 	}
 }

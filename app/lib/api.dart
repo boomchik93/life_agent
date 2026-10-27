@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'card.dart';
 import 'llm_info.dart';
 import 'models.dart';
+import 'plan.dart';
 import 'slot.dart';
 
 enum ApiProblem { network, unauthorized, notConfigured, server, dailyLimit, llm }
@@ -46,6 +47,12 @@ abstract class LifeApi {
 
   /// Saves a task with a deadline. The same [key] never saves twice.
   Future<Written> saveTask(TaskRequest task, {required String key});
+
+  /// Builds the week plan from the open tasks. Nothing is written.
+  Future<PlanData> planWeek();
+
+  /// Writes the plan the user confirmed. The same [key] never writes twice.
+  Future<PlanApplied> applyPlan(PlanData plan, {required String key});
 
   /// Cheap authenticated call used by the settings screen to test the connection.
   Future<void> ping();
@@ -222,6 +229,26 @@ class HttpLifeApi implements LifeApi {
   @override
   Future<Written> saveTask(TaskRequest task, {required String key}) async =>
       _written(await _send('POST', _uri('/v1/items'), body: task.toJson(), idempotencyKey: key));
+
+  @override
+  Future<PlanData> planWeek() async {
+    final j = await _send('POST', _uri('/v1/plan/week'), body: <String, dynamic>{});
+    try {
+      return PlanData.fromJson(j);
+    } catch (_) {
+      throw const ApiException(ApiProblem.server, 'Сервер вернул неожиданные данные. Обнови приложение.');
+    }
+  }
+
+  @override
+  Future<PlanApplied> applyPlan(PlanData plan, {required String key}) async {
+    final j = await _send('POST', _uri('/v1/plan/week/apply'), body: plan.applyJson(), idempotencyKey: key);
+    try {
+      return PlanApplied.fromJson(j);
+    } catch (_) {
+      throw const ApiException(ApiProblem.server, 'Сервер вернул неожиданные данные. Обнови приложение.');
+    }
+  }
 
   Written _written(Map<String, dynamic> j) {
     try {

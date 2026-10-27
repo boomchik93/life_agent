@@ -155,3 +155,37 @@ class RiskGrid extends StatelessWidget {
     return Column(children: [row(0), const SizedBox(height: 8), row(2)]);
   }
 }
+
+/// A risk before and after a change, side by side.
+class RiskChange extends StatelessWidget {
+  const RiskChange({super.key, required this.title, required this.before, required this.after, required this.worsened});
+
+  final String title;
+  final Risk before, after;
+  final bool worsened;
+
+  @override
+  Widget build(BuildContext context) {
+    final b = Theme.of(context).brightness;
+    Widget state(Risk r) => Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(riskIcon(r.color), color: riskColor(r.color, b), size: 20),
+          const SizedBox(width: 4),
+          Text(riskLabel(r.color)),
+        ]);
+    return Semantics(
+      label: '$title: было ${riskLabel(before.color)}, станет ${riskLabel(after.color)}',
+      excludeSemantics: true,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(children: [
+          Expanded(
+            child: Text(title, style: worsened ? const TextStyle(fontWeight: FontWeight.bold) : null),
+          ),
+          state(before),
+          const Padding(padding: EdgeInsets.symmetric(horizontal: 6), child: Icon(Icons.arrow_forward, size: 16)),
+          state(after),
+        ]),
+      ),
+    );
+  }
+}

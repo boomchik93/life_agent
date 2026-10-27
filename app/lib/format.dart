@@ -32,3 +32,10 @@ String eventTime(CalEvent e, Wall day) {
   if (e.end.sameDay(day)) return 'до ${e.end.hm}';
   return 'весь день';
 }
+
+/// "2 ч 30 мин", "45 мин", "3 ч".
+String minutesLabel(int min) {
+  final h = min ~/ 60, m = min % 60;
+  if (h == 0) return '$m мин';
+  return m == 0 ? '$h ч' : '$h ч $m мин';
+}

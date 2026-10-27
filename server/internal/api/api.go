@@ -11,6 +11,7 @@ import (
 	"lifeagent/internal/calendar"
 	"lifeagent/internal/llm"
 	"lifeagent/internal/load"
+	"lifeagent/internal/plan"
 	"lifeagent/internal/store"
 )
 
@@ -89,6 +90,10 @@ func New(o Options) http.Handler {
 	v1.HandleFunc("POST /v1/check", s.postCheck)
 	v1.HandleFunc("POST /v1/events", s.postEvents)
 	v1.HandleFunc("POST /v1/items", s.postItems)
+	v1.HandleFunc("GET /v1/items", s.getItems)
+	v1.HandleFunc("PATCH /v1/items/{id}", s.patchItem)
+	v1.HandleFunc("POST /v1/plan/week", s.postPlanWeek)
+	v1.HandleFunc("POST /v1/plan/week/apply", s.postPlanApply)
 	mux.Handle("/v1/", s.rateLimit(s.auth(v1)))
 
 	return mux
@@ -149,6 +154,8 @@ func validateSetting(key string, raw json.RawMessage) error {
 		_, err = load.ParseThresholds(raw)
 	case settingCalendarCategories:
 		_, err = load.ParseCalendarCategories(raw)
+	case settingPlanParams:
+		_, err = plan.ParseParams(raw)
 	case llm.SettingKey:
 		over, perr := llm.ParseOverrides(raw)
 		if perr != nil {

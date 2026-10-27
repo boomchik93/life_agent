@@ -9,6 +9,7 @@ import '../widgets/risk_indicator.dart';
 import '../widgets/week_view.dart';
 import 'checkin_screen.dart';
 import 'models_screen.dart';
+import 'plan_screen.dart';
 import 'settings_screen.dart';
 import 'week_screen.dart';
 
@@ -82,6 +83,13 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => ModelsScreen(api: api)));
   }
 
+  Future<void> _openPlan() async {
+    final api = _c.api;
+    if (api == null) return;
+    final written = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => PlanScreen(api: api)));
+    if (written == true) _reload();
+  }
+
   void _openWeek() {
     final api = _c.api;
     if (api == null) return;
@@ -94,6 +102,7 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Жизнь'),
         actions: [
+          IconButton(tooltip: 'План недели', icon: const Icon(Icons.auto_awesome), onPressed: _openPlan),
           IconButton(tooltip: 'Неделя', icon: const Icon(Icons.calendar_month), onPressed: _openWeek),
           IconButton(tooltip: 'Настройки', icon: const Icon(Icons.settings), onPressed: _openSettings),
         ],
