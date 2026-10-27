@@ -17,6 +17,14 @@ type Sink interface {
 	SourceEnabled(source string) (bool, error)
 	ReplaceActivity(date, source string, rows []store.ActivityRow) error
 	RecordSync(source, at string, errMsg *string) error
+	SetSourceEnabled(source string, enabled bool) error
+}
+
+// Fragile marks a collector on an unofficial path that may break at any time.
+// After a failure its source switches itself off and keeps the error in its
+// state instead of failing again every round.
+type Fragile interface {
+	DisableOnError() bool
 }
 
 var urlRe = regexp.MustCompile(`https?://\S+`)
@@ -46,6 +54,9 @@ func Run(ctx context.Context, c Collector, now time.Time, sink Sink) error {
 	fail := func(err error) error {
 		msg := SafeError(err)
 		_ = sink.RecordSync(source, now.UTC().Format(time.RFC3339), &msg)
+		if f, ok := c.(Fragile); ok && f.DisableOnError() {
+			_ = sink.SetSourceEnabled(source, false)
+		}
 		return errors.New(msg)
 	}
 

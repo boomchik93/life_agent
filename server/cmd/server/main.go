@@ -19,6 +19,8 @@ import (
 	"lifeagent/internal/api"
 	"lifeagent/internal/calendar"
 	"lifeagent/internal/config"
+	"lifeagent/internal/github"
+	"lifeagent/internal/leetcode"
 	"lifeagent/internal/llm"
 	"lifeagent/internal/parse"
 	"lifeagent/internal/steam"
@@ -256,6 +258,12 @@ func collectors(cfg config.Config, st *store.Store) []activity.Schedule {
 	list := []activity.Schedule{{Collector: weather.New(st, cfg.Location), Every: weather.Every}}
 	if cfg.SteamKey != "" {
 		list = append(list, activity.Schedule{Collector: steam.New(cfg.SteamKey, cfg.SteamID, st, cfg.Location), Every: steam.Every})
+	}
+	if cfg.GitHubToken != "" {
+		list = append(list, activity.Schedule{Collector: github.New(cfg.GitHubToken, cfg.GitHubLogin, cfg.Location), Every: github.Every})
+	}
+	if cfg.LeetCodeUser != "" {
+		list = append(list, activity.Schedule{Collector: leetcode.New(cfg.LeetCodeUser, cfg.Location), Every: leetcode.Every})
 	}
 	return list
 }
