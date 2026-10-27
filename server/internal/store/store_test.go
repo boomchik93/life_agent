@@ -1,10 +1,15 @@
 package store
 
 import (
+	"bytes"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"filippo.io/age"
 )
 
 func open(t *testing.T) (*Store, string) {
@@ -65,7 +70,7 @@ func TestBackupAndPrune(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "backup")
 
 	old := time.Now().Add(-20 * 24 * time.Hour)
-	oldPath, err := s.Backup(dir, 14*24*time.Hour, old)
+	oldPath, err := s.Backup(dir, 14*24*time.Hour, old, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +79,7 @@ func TestBackupAndPrune(t *testing.T) {
 	os.WriteFile(other, []byte("x"), 0o600)
 	os.Chtimes(other, old, old)
 
-	newPath, err := s.Backup(dir, 14*24*time.Hour, time.Now())
+	newPath, err := s.Backup(dir, 14*24*time.Hour, time.Now(), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -324,5 +329,74 @@ func TestAdviceLog(t *testing.T) {
 	}
 	if _, err := s.AddAdvice(Advice{At: "x", Source: "bot", Status: "pending"}); err == nil {
 		t.Error("accepted an unknown source")
+	}
+}
+
+func TestEncryptedBackup(t *testing.T) {
+	s, _ := open(t)
+	s.PutSettings(map[string]string{"k": `"secret-value-in-the-db"`})
+	dir := filepath.Join(t.TempDir(), "backup")
+
+	id, err := age.GenerateX25519Identity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	path, err := s.Backup(dir, 14*24*time.Hour, time.Now(), id.Recipient().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(path, ".db.age") {
+		t.Fatalf("path %s", path)
+	}
+	entries, _ := os.ReadDir(dir)
+	if len(entries) != 1 {
+		t.Fatalf("only the encrypted file may stay on the server: %v", entries)
+	}
+	if info, _ := os.Stat(path); info.Mode().Perm() != 0o600 {
+		t.Errorf("mode %v", info.Mode())
+	}
+	raw, _ := os.ReadFile(path)
+	if bytes.Contains(raw, []byte("secret-value-in-the-db")) || bytes.HasPrefix(raw, []byte("SQLite format")) {
+		t.Fatal("the backup is not encrypted")
+	}
+
+	// Only the private key opens it.
+	other, _ := age.GenerateX25519Identity()
+	if _, err := age.Decrypt(bytes.NewReader(raw), other); err == nil {
+		t.Fatal("a stranger's key opened the backup")
+	}
+	r, err := age.Decrypt(bytes.NewReader(raw), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored := filepath.Join(t.TempDir(), "restored.db")
+	os.WriteFile(restored, plain, 0o600)
+	b, err := Open(restored)
+	if err != nil {
+		t.Fatalf("decrypted backup is not a database: %v", err)
+	}
+	defer b.Close()
+	if kv, _ := b.Settings(); kv["k"] != `"secret-value-in-the-db"` {
+		t.Errorf("restored settings: %v", kv)
+	}
+
+	// Encrypted copies are pruned like plain ones.
+	old := time.Now().Add(-30 * 24 * time.Hour)
+	os.Chtimes(path, old, old)
+	if _, err := s.Backup(dir, 14*24*time.Hour, time.Now().Add(time.Second), id.Recipient().String()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Error("old encrypted backup not pruned")
+	}
+	if _, err := s.Backup(dir, time.Hour, time.Now(), "not-a-key"); err == nil {
+		t.Error("a bad recipient must fail, not write a plain copy")
+	}
+	if left, _ := os.ReadDir(dir); len(left) != 1 {
+		t.Errorf("a failed backup left files: %v", left)
 	}
 }

@@ -58,7 +58,7 @@ func run(envFile, cmd string, logger *slog.Logger) error {
 	case "eval":
 		return runEval(cfg, st, flag.Args()[1:])
 	case "backup":
-		path, err := st.Backup(cfg.BackupDir, backupKeep, time.Now())
+		path, err := st.Backup(cfg.BackupDir, backupKeep, time.Now(), cfg.AgeRecipient)
 		if err != nil {
 			return err
 		}
@@ -176,6 +176,7 @@ func serve(cfg config.Config, st *store.Store, logger *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	go prepareAdviceLoop(ctx, app, logger)
+	go pruneLoop(ctx, st, cfg.Location, logger)
 
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
@@ -214,6 +215,32 @@ func prepareAdviceLoop(ctx context.Context, app *api.Server, logger *slog.Logger
 			} else if a != nil {
 				logger.Info("advice prepared", "id", a.ID)
 			}
+		}
+	}
+}
+
+// activityKeep is how long daily sums are kept (PLAN.md section 14).
+const activityKeep = 365 * 24 * time.Hour
+
+// pruneLoop removes activity sums older than activityKeep once a day.
+func pruneLoop(ctx context.Context, st *store.Store, loc *time.Location, logger *slog.Logger) {
+	prune := func() {
+		before := time.Now().In(loc).Add(-activityKeep).Format("2006-01-02")
+		if n, err := st.PruneActivity(before); err != nil {
+			logger.Error("prune activity failed", "err", err)
+		} else if n > 0 {
+			logger.Info("old activity pruned", "rows", n)
+		}
+	}
+	prune()
+	t := time.NewTicker(24 * time.Hour)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			prune()
 		}
 	}
 }

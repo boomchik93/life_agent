@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"filippo.io/age"
 )
 
 const minTokenLen = 43 // 32 random bytes in base64url; hex of 32 bytes is 64
@@ -25,6 +27,10 @@ type Config struct {
 	ICSURL        string   // optional class-schedule feed
 
 	OpenRouterKey string // empty: the LLM features report "not configured"
+
+	// AgeRecipient is the public key (age1...) backups are encrypted to. The
+	// private key stays on the Mac, so the server cannot read its own backups.
+	AgeRecipient string
 }
 
 // Load reads configuration from the environment.
@@ -51,6 +57,12 @@ func Load(getenv func(string) string) (Config, error) {
 	c.ICSURL = getenv("ICS_URL")
 	c.CalendarWrite = strings.TrimSpace(getenv("CALENDAR_WRITE_ID"))
 	c.OpenRouterKey = getenv("OPENROUTER_API_KEY")
+	c.AgeRecipient = strings.TrimSpace(getenv("AGE_RECIPIENT"))
+	if c.AgeRecipient != "" {
+		if _, err := age.ParseX25519Recipient(c.AgeRecipient); err != nil {
+			return Config{}, fmt.Errorf("AGE_RECIPIENT: %w", err)
+		}
+	}
 	for _, id := range strings.Split(getenv("CALENDAR_IDS"), ",") {
 		if id = strings.TrimSpace(id); id != "" {
 			c.CalendarIDs = append(c.CalendarIDs, id)
