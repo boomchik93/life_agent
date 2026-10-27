@@ -1,3 +1,4 @@
+import 'package:life_agent/advice.dart';
 import 'package:life_agent/api.dart';
 import 'package:life_agent/card.dart';
 import 'package:life_agent/health.dart';
@@ -13,6 +14,7 @@ class MemoryStorage implements AppStorage {
   ConnectionSettings connection;
   String? checkinDate;
   bool healthOn = false;
+  bool adviceOn = false;
   String? healthAt, healthNote;
 
   @override
@@ -23,6 +25,10 @@ class MemoryStorage implements AppStorage {
   Future<String?> lastCheckinDate() async => checkinDate;
   @override
   Future<void> saveCheckinDate(String ymd) async => checkinDate = ymd;
+  @override
+  Future<bool> adviceNotifyEnabled() async => adviceOn;
+  @override
+  Future<void> saveAdviceNotifyEnabled(bool on) async => adviceOn = on;
   @override
   Future<bool> healthSyncEnabled() async => healthOn;
   @override
@@ -159,6 +165,48 @@ class FakeApi implements LifeApi {
     );
   }
 
+  Advice adviceResult = sampleAdvice();
+  Object? adviceError;
+  Duration adviceDelay = Duration.zero;
+  int adviceRequests = 0;
+  List<Advice> history = [];
+  Advice? pending;
+  Object? pendingError;
+  AdviceSettings adviceSet = const AdviceSettings();
+  final adviceSaved = <AdviceSettings>[];
+
+  @override
+  Future<Advice> requestAdvice() async {
+    adviceRequests++;
+    if (adviceDelay > Duration.zero) await Future<void>.delayed(adviceDelay);
+    if (adviceError != null) throw adviceError!;
+    history = [adviceResult, ...history];
+    return adviceResult;
+  }
+
+  @override
+  Future<List<Advice>> adviceHistory() async {
+    if (adviceError != null && history.isEmpty) throw adviceError!;
+    return history;
+  }
+
+  @override
+  Future<Advice?> pendingAdvice() async {
+    if (pendingError != null) throw pendingError!;
+    final p = pending;
+    pending = null; // handed over once
+    return p;
+  }
+
+  @override
+  Future<AdviceSettings> adviceSettings() async => adviceSet;
+
+  @override
+  Future<void> saveAdviceSettings(AdviceSettings s) async {
+    adviceSaved.add(s);
+    adviceSet = s;
+  }
+
   final healthSent = <HealthDay>[];
   Object? healthError;
   int healthDeleted = 3;
@@ -283,3 +331,6 @@ PlanData samplePlan({
     violations: violations,
   );
 }
+
+Advice sampleAdvice({int id = 1, String text = 'Сдвинь сдачу на среду. Ляг до полуночи.', String source = 'user', String reason = 'asked,overload'}) =>
+    Advice(id: id, at: const Wall(2026, 10, 28, 12), text: text, source: source, reasons: reason.split(','));

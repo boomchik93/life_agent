@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../background.dart';
 import '../controller.dart';
 import '../format.dart';
 import '../models.dart';
+import '../notifications.dart';
 import '../widgets/error_view.dart';
 import '../widgets/composer.dart';
 import '../widgets/risk_indicator.dart';
 import '../widgets/week_view.dart';
+import 'advice_screen.dart';
 import 'checkin_screen.dart';
 import 'models_screen.dart';
 import 'plan_screen.dart';
@@ -14,10 +17,14 @@ import 'settings_screen.dart';
 import 'week_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.controller, this.now});
+  const HomeScreen({super.key, required this.controller, this.now, this.scheduler, this.notifier});
 
   final AppController controller;
   final DateTime Function()? now;
+
+  /// Replaceable in tests; the phone uses WorkManager and system notifications.
+  final SyncScheduler? scheduler;
+  final Notifier? notifier;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -90,6 +97,20 @@ class _HomeScreenState extends State<HomeScreen> {
     if (written == true) _reload();
   }
 
+  void _openAdvice({bool askNow = false}) {
+    final api = _c.api;
+    if (api == null) return;
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => AdviceScreen(
+        api: api,
+        storage: _c.storage,
+        scheduler: widget.scheduler ?? WorkmanagerScheduler(),
+        notifier: widget.notifier ?? LocalNotifier(),
+        askNow: askNow,
+      ),
+    ));
+  }
+
   void _openWeek() {
     final api = _c.api;
     if (api == null) return;
@@ -102,6 +123,7 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Жизнь'),
         actions: [
+          IconButton(tooltip: 'Совет', icon: const Icon(Icons.lightbulb_outline), onPressed: _openAdvice),
           IconButton(tooltip: 'План недели', icon: const Icon(Icons.auto_awesome), onPressed: _openPlan),
           IconButton(tooltip: 'Неделя', icon: const Icon(Icons.calendar_month), onPressed: _openWeek),
           IconButton(tooltip: 'Настройки', icon: const Icon(Icons.settings), onPressed: _openSettings),
@@ -110,7 +132,13 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Column(
         children: [
           Expanded(child: _body()),
-          if (_c.api != null) Composer(api: _c.api!, now: widget.now, onOpenModels: _openModels, onSaved: _reload),
+          if (_c.api != null) Composer(
+              api: _c.api!,
+              now: widget.now,
+              onOpenModels: _openModels,
+              onSaved: _reload,
+              onAdvice: () => _openAdvice(askNow: true),
+            ),
         ],
       ),
     );

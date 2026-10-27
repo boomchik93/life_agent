@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
+import 'advice.dart';
 import 'card.dart';
 import 'health.dart';
 import 'llm_info.dart';
@@ -48,6 +49,19 @@ abstract class LifeApi {
 
   /// Saves a task with a deadline. The same [key] never saves twice.
   Future<Written> saveTask(TaskRequest task, {required String key});
+
+  /// Asks for an advice now. Takes up to a minute and a half on slow models.
+  Future<Advice> requestAdvice();
+
+  /// The history of advice, newest first.
+  Future<List<Advice>> adviceHistory();
+
+  /// The advice the server prepared for a notification, if there is one. It
+  /// is handed over once.
+  Future<Advice?> pendingAdvice();
+
+  Future<AdviceSettings> adviceSettings();
+  Future<void> saveAdviceSettings(AdviceSettings s);
 
   /// Sends the summary of one day from Health Connect.
   Future<void> sendHealthDay(HealthDay day);
@@ -236,6 +250,51 @@ class HttpLifeApi implements LifeApi {
   @override
   Future<Written> saveTask(TaskRequest task, {required String key}) async =>
       _written(await _send('POST', _uri('/v1/items'), body: task.toJson(), idempotencyKey: key));
+
+  @override
+  Future<Advice> requestAdvice() async {
+    final j = await _send('POST', _uri('/v1/advice'), body: <String, dynamic>{}, timeout: _parseTimeout);
+    try {
+      return Advice.fromJson(j);
+    } catch (_) {
+      throw const ApiException(ApiProblem.server, 'Сервер вернул неожиданные данные. Обнови приложение.');
+    }
+  }
+
+  @override
+  Future<List<Advice>> adviceHistory() async {
+    final j = await _send('GET', _uri('/v1/advice'));
+    try {
+      return [for (final a in (j['advice'] as List)) Advice.fromJson(a as Map<String, dynamic>)];
+    } catch (_) {
+      throw const ApiException(ApiProblem.server, 'Сервер вернул неожиданные данные. Обнови приложение.');
+    }
+  }
+
+  @override
+  Future<Advice?> pendingAdvice() async {
+    final j = await _send('GET', _uri('/v1/advice/pending'));
+    final a = j['advice'];
+    try {
+      return a == null ? null : Advice.fromJson(a as Map<String, dynamic>);
+    } catch (_) {
+      throw const ApiException(ApiProblem.server, 'Сервер вернул неожиданные данные. Обнови приложение.');
+    }
+  }
+
+  @override
+  Future<AdviceSettings> adviceSettings() async {
+    final j = await _send('GET', _uri('/v1/settings'));
+    final a = j['advice'];
+    return AdviceSettings(includePrivate: a is Map && a['include_private'] == true);
+  }
+
+  @override
+  Future<void> saveAdviceSettings(AdviceSettings s) async {
+    await _send('PUT', _uri('/v1/settings'), body: {
+      'advice': {'include_private': s.includePrivate},
+    });
+  }
 
   @override
   Future<void> sendHealthDay(HealthDay day) async {

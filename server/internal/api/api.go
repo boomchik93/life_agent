@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"lifeagent/internal/advice"
 	"lifeagent/internal/calendar"
 	"lifeagent/internal/llm"
 	"lifeagent/internal/load"
@@ -39,6 +40,7 @@ type Server struct {
 
 	parser  PhraseParser
 	llmInfo *LLMInfo
+	advisor AdviceGenerator
 }
 
 type Options struct {
@@ -51,12 +53,16 @@ type Options struct {
 	Now      func() time.Time // defaults to time.Now
 	Parser   PhraseParser     // nil: /v1/parse reports the LLM as not configured
 	LLM      *LLMInfo         // nil: /v1/llm reports the LLM as not configured
+	Advisor  AdviceGenerator  // nil: /v1/advice reports the LLM as not configured
 	// RatePerSec and Burst limit requests per client on /v1/*.
 	RatePerSec float64
 	Burst      int
 }
 
-func New(o Options) http.Handler {
+// New builds the HTTP handler. Use NewServer when background work needs the server too.
+func New(o Options) http.Handler { return NewServer(o).Handler() }
+
+func NewServer(o Options) *Server {
 	s := &Server{
 		store:  o.Store,
 		token:  o.Token,
@@ -69,6 +75,7 @@ func New(o Options) http.Handler {
 
 		parser:  o.Parser,
 		llmInfo: o.LLM,
+		advisor: o.Advisor,
 	}
 	if s.loc == nil {
 		s.loc = time.UTC
@@ -77,6 +84,11 @@ func New(o Options) http.Handler {
 		s.now = time.Now
 	}
 
+	return s
+}
+
+// Handler returns the routes of the server.
+func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.healthz)
 
@@ -96,6 +108,9 @@ func New(o Options) http.Handler {
 	v1.HandleFunc("PATCH /v1/items/{id}", s.patchItem)
 	v1.HandleFunc("POST /v1/plan/week", s.postPlanWeek)
 	v1.HandleFunc("POST /v1/plan/week/apply", s.postPlanApply)
+	v1.HandleFunc("POST /v1/advice", s.postAdvice)
+	v1.HandleFunc("GET /v1/advice", s.getAdvice)
+	v1.HandleFunc("GET /v1/advice/pending", s.getAdvicePending)
 	mux.Handle("/v1/", s.rateLimit(s.auth(v1)))
 
 	return mux
@@ -156,6 +171,8 @@ func validateSetting(key string, raw json.RawMessage) error {
 		_, err = load.ParseThresholds(raw)
 	case settingCalendarCategories:
 		_, err = load.ParseCalendarCategories(raw)
+	case settingAdvice:
+		_, err = advice.ParseSettings(raw)
 	case settingPlanParams:
 		_, err = plan.ParseParams(raw)
 	case llm.SettingKey:

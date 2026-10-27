@@ -18,6 +18,16 @@ func open(t *testing.T) (*Store, string) {
 	return s, p
 }
 
+// migrationCount is the number of migration files: a new one needs no test edit.
+func migrationCount(t *testing.T) int {
+	t.Helper()
+	entries, err := migrationsFS.ReadDir("migrations")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return len(entries)
+}
+
 func TestMigrateIdempotent(t *testing.T) {
 	s, p := open(t)
 	s.Close()
@@ -27,7 +37,7 @@ func TestMigrateIdempotent(t *testing.T) {
 	}
 	defer s2.Close()
 	var n int
-	if err := s2.DB.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&n); err != nil || n != 6 {
+	if err := s2.DB.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&n); err != nil || n != migrationCount(t) {
 		t.Fatalf("migrations applied = %d, err %v", n, err)
 	}
 }
@@ -277,5 +287,42 @@ func TestHealth(t *testing.T) {
 	}
 	if got, _ := s.Healths("2026-10-01", "2026-10-31"); len(got) != 0 {
 		t.Errorf("rows left: %+v", got)
+	}
+}
+
+func TestAdviceLog(t *testing.T) {
+	s, _ := open(t)
+	if last, err := s.LastAdviceAt(); err != nil || last != nil {
+		t.Fatalf("empty log: %v %v", last, err)
+	}
+	if _, ok, _ := s.TakePendingAdvice(); ok {
+		t.Fatal("nothing is pending yet")
+	}
+	a1, err := s.AddAdvice(Advice{At: "2026-10-20T08:00:00Z", Reason: "overload", Text: "раз", Model: "m", Source: "auto", Status: "pending"})
+	if err != nil || a1.ID == 0 {
+		t.Fatal(err)
+	}
+	s.AddAdvice(Advice{At: "2026-10-25T08:00:00Z", Reason: "asked", Text: "два", Model: "m", Source: "user", Status: "delivered"})
+
+	if p, _ := s.HasPendingAdvice(); !p {
+		t.Error("one advice waits")
+	}
+	got, ok, err := s.TakePendingAdvice()
+	if err != nil || !ok || got.ID != a1.ID || got.Status != "delivered" {
+		t.Fatalf("take = %+v %v %v", got, ok, err)
+	}
+	if _, ok, _ := s.TakePendingAdvice(); ok {
+		t.Error("an advice is handed over once")
+	}
+	last, _ := s.LastAdviceAt()
+	if last == nil || last.Format("2006-01-02") != "2026-10-25" {
+		t.Errorf("last = %v", last)
+	}
+	list, _ := s.Advices(10)
+	if len(list) != 2 || list[0].Text != "два" {
+		t.Errorf("history newest first: %+v", list)
+	}
+	if _, err := s.AddAdvice(Advice{At: "x", Source: "bot", Status: "pending"}); err == nil {
+		t.Error("accepted an unknown source")
 	}
 }

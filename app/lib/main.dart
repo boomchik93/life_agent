@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'background.dart';
 import 'controller.dart';
+import 'notifications.dart';
 import 'screens/home_screen.dart';
 import 'settings.dart';
 
@@ -12,7 +13,7 @@ Future<void> main() async {
   try {
     await WorkmanagerScheduler.init();
     // The system keeps the schedule, but a reinstall or an update may drop it.
-    if (await storage.healthSyncEnabled()) await WorkmanagerScheduler().start();
+    await applyBackground(storage, WorkmanagerScheduler());
   } catch (_) {
     // Background work is optional: the app works without it.
   }
@@ -41,17 +42,19 @@ class LifeAgentApp extends StatelessWidget {
 
 /// Waits for the stored settings, then shows the home screen.
 class HomeRoot extends StatelessWidget {
-  const HomeRoot({super.key, required this.controller, this.now});
+  const HomeRoot({super.key, required this.controller, this.now, this.scheduler, this.notifier});
 
   final AppController controller;
   final DateTime Function()? now;
+  final SyncScheduler? scheduler;
+  final Notifier? notifier;
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) => controller.loaded
-          ? HomeScreen(controller: controller, now: now)
+          ? HomeScreen(controller: controller, now: now, scheduler: scheduler, notifier: notifier)
           : const Scaffold(body: Center(child: CircularProgressIndicator())),
     );
   }

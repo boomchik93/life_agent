@@ -59,15 +59,33 @@ func (s *Server) postParse(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, res)
 }
 
+// llmWords are the texts of a failed model request that depend on the task.
+type llmWords struct{ notChosen, unavailable, timeout string }
+
+var parseWords = llmWords{
+	notChosen:   "Модель для разбора не выбрана. Выбери её в настройках.",
+	unavailable: "Не удалось разобрать фразу: модели не ответили или ответили неверно. Попробуй ещё раз позже.",
+	timeout:     "Разбор занял слишком много времени. Попробуй ещё раз.",
+}
+
+var adviceWords = llmWords{
+	notChosen:   "Модель для совета не выбрана. Выбери её в настройках.",
+	unavailable: "Не удалось получить совет: модели не ответили или ответили неверно. Попробуй ещё раз позже.",
+	timeout:     "Совет готовился слишком долго. Попробуй ещё раз.",
+}
+
 func (s *Server) llmFail(w http.ResponseWriter, r *http.Request, err error) {
+	s.llmFailFor(w, r, err, parseWords)
+}
+
+func (s *Server) llmFailFor(w http.ResponseWriter, r *http.Request, err error, words llmWords) {
 	var dl *llm.DailyLimitError
 	var ex *llm.ExhaustedError
 	switch {
 	case errors.Is(err, parse.ErrBadText):
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("Фраза должна быть от 1 до %d символов.", parse.MaxTextRunes))
 	case errors.Is(err, llm.ErrNotConfigured):
-		writeCode(w, http.StatusServiceUnavailable, "llm_not_configured",
-			"Модель для разбора не выбрана. Выбери её в настройках.")
+		writeCode(w, http.StatusServiceUnavailable, "llm_not_configured", words.notChosen)
 	case errors.As(err, &dl):
 		reset := dl.ResetAt.In(s.loc)
 		writeJSON(w, http.StatusTooManyRequests, map[string]any{
@@ -78,10 +96,9 @@ func (s *Server) llmFail(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, llm.ErrAuth):
 		writeCode(w, http.StatusBadGateway, "llm_auth", "Провайдер отклонил ключ OpenRouter. Проверь ключ на сервере.")
 	case errors.As(err, &ex):
-		writeCode(w, http.StatusServiceUnavailable, "models_unavailable",
-			"Не удалось разобрать фразу: модели не ответили или ответили неверно. Попробуй ещё раз позже.")
+		writeCode(w, http.StatusServiceUnavailable, "models_unavailable", words.unavailable)
 	case errors.Is(err, context.DeadlineExceeded):
-		writeCode(w, http.StatusGatewayTimeout, "timeout", "Разбор занял слишком много времени. Попробуй ещё раз.")
+		writeCode(w, http.StatusGatewayTimeout, "timeout", words.timeout)
 	case errors.Is(err, context.Canceled):
 		// The client went away; nobody reads the answer.
 	default:

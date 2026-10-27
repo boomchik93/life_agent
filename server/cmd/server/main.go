@@ -14,6 +14,7 @@ import (
 	"time"
 	_ "time/tzdata" // zone names in feeds must resolve even without system tzdata
 
+	"lifeagent/internal/advice"
 	"lifeagent/internal/api"
 	"lifeagent/internal/calendar"
 	"lifeagent/internal/config"
@@ -158,12 +159,14 @@ func serve(cfg config.Config, st *store.Store, logger *slog.Logger) error {
 	}
 	if client != nil {
 		opts.Parser = &parse.Parser{LLM: client, Loc: cfg.Location, Now: time.Now}
+		opts.Advisor = &advice.Advisor{LLM: client}
 		opts.LLM = info
 	}
+	app := api.NewServer(opts)
 
 	srv := &http.Server{
 		Addr:              cfg.Listen,
-		Handler:           api.New(opts),
+		Handler:           app.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      100 * time.Second, // a parse may take up to four model calls
@@ -172,6 +175,7 @@ func serve(cfg config.Config, st *store.Store, logger *slog.Logger) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	go prepareAdviceLoop(ctx, app, logger)
 
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
@@ -191,3 +195,25 @@ func serve(cfg config.Config, st *store.Store, logger *slog.Logger) error {
 }
 
 func nopLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
+
+// adviceEvery is how often the server checks whether an automatic advice is due.
+const adviceEvery = time.Hour
+
+// prepareAdviceLoop makes the advice the phone will fetch. The rules and the
+// quota check live in PrepareAdvice; a failure only waits for the next round.
+func prepareAdviceLoop(ctx context.Context, app *api.Server, logger *slog.Logger) {
+	t := time.NewTicker(adviceEvery)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if a, err := app.PrepareAdvice(ctx); err != nil {
+				logger.Error("prepare advice failed", "err", err)
+			} else if a != nil {
+				logger.Info("advice prepared", "id", a.ID)
+			}
+		}
+	}
+}

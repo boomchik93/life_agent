@@ -1,5 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Android 13+: the notification with the advice -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- Health Connect: only sleep and heart rate, read-only. -->
     <uses-permission android:name="android.permission.health.READ_SLEEP"/>
     <uses-permission android:name="android.permission.health.READ_HEART_RATE"/>

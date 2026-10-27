@@ -38,6 +38,10 @@ abstract class AppStorage {
   Future<bool> healthSyncEnabled();
   Future<void> saveHealthSyncEnabled(bool on);
 
+  /// Whether the background task shows notifications with the advice.
+  Future<bool> adviceNotifyEnabled();
+  Future<void> saveAdviceNotifyEnabled(bool on);
+
   /// When the last sync ran (ISO 8601) and why it sent nothing, if it did not.
   Future<({String? at, String? note})> lastHealthSync();
   Future<void> saveHealthSync(String at, String? note);
@@ -53,6 +57,7 @@ class PlatformStorage implements AppStorage {
   static const _kToken = 'token';
   static const _kCheckin = 'last_checkin_date';
   static const _kHealthOn = 'health_sync_on';
+  static const _kAdviceOn = 'advice_notify_on';
   static const _kHealthAt = 'health_sync_at';
   static const _kHealthNote = 'health_sync_note';
 
@@ -87,6 +92,14 @@ class PlatformStorage implements AppStorage {
   @override
   Future<void> saveHealthSyncEnabled(bool on) async =>
       (await SharedPreferences.getInstance()).setBool(_kHealthOn, on);
+
+  @override
+  Future<bool> adviceNotifyEnabled() async =>
+      (await SharedPreferences.getInstance()).getBool(_kAdviceOn) ?? false;
+
+  @override
+  Future<void> saveAdviceNotifyEnabled(bool on) async =>
+      (await SharedPreferences.getInstance()).setBool(_kAdviceOn, on);
 
   @override
   Future<({String? at, String? note})> lastHealthSync() async {

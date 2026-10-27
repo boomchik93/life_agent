@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../advice.dart';
 import '../api.dart';
 import '../screens/card_screen.dart';
 
@@ -9,13 +10,17 @@ const maxPhraseLength = 500;
 /// The input line of the home screen. Voice input is the microphone of the
 /// keyboard. The typed text is never cleared by an error.
 class Composer extends StatefulWidget {
-  const Composer({super.key, required this.api, this.now, this.onOpenModels, this.onSaved});
+  const Composer({super.key, required this.api, this.now, this.onOpenModels, this.onSaved, this.onAdvice});
 
   final LifeApi api;
   final DateTime Function()? now;
 
   /// Called after an event is written or a task is saved, to refresh the week.
   final VoidCallback? onSaved;
+
+  /// Called when the phrase asks for an advice ("дай совет") instead of
+  /// describing an event or a task.
+  final VoidCallback? onAdvice;
 
   /// Opens the model settings; offered when the models are the problem.
   final VoidCallback? onOpenModels;
@@ -48,6 +53,12 @@ class _ComposerState extends State<Composer> {
 
   Future<void> _send() async {
     if (!_canSend) return;
+    if (widget.onAdvice != null && isAdviceRequest(_text.text)) {
+      _text.clear();
+      _focus.unfocus();
+      widget.onAdvice!();
+      return;
+    }
     final ticket = ++_ticket;
     _focus.unfocus();
     setState(() {

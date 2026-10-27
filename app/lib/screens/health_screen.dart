@@ -102,12 +102,8 @@ class _HealthScreenState extends State<HealthScreen> {
       });
 
   Future<void> _toggle(bool on) => _guard(() async {
-        if (on) {
-          await widget.scheduler.start();
-        } else {
-          await widget.scheduler.stop();
-        }
         await widget.storage.saveHealthSyncEnabled(on);
+        await applyBackground(widget.storage, widget.scheduler);
         await _refresh();
       });
 
