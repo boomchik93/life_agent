@@ -27,7 +27,7 @@ func TestMigrateIdempotent(t *testing.T) {
 	}
 	defer s2.Close()
 	var n int
-	if err := s2.DB.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&n); err != nil || n != 1 {
+	if err := s2.DB.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&n); err != nil || n != 2 {
 		t.Fatalf("migrations applied = %d, err %v", n, err)
 	}
 }
@@ -89,3 +89,36 @@ func TestBackupAndPrune(t *testing.T) {
 		t.Errorf("backup content %v", got)
 	}
 }
+
+func TestCheckins(t *testing.T) {
+	s, _ := open(t)
+	sleep := 6.5
+	for _, c := range []Checkin{
+		{Date: "2026-10-26", Energy: 3, Mood: 4},
+		{Date: "2026-10-27", Energy: 2, Mood: 2, SleepHours: &sleep},
+		{Date: "2026-10-27", Energy: 5, Mood: 4, SleepHours: &sleep}, // same day replaces
+		{Date: "2026-10-30", Energy: 1, Mood: 1},
+	} {
+		if err := s.PutCheckin(c); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := s.Checkins("2026-10-26", "2026-10-28")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].SleepHours != nil || got[1].Energy != 5 || *got[1].SleepHours != 6.5 {
+		t.Fatalf("got %+v", got)
+	}
+	for _, bad := range []Checkin{
+		{Date: "2026-11-01", Energy: 0, Mood: 3},
+		{Date: "2026-11-01", Energy: 3, Mood: 6},
+		{Date: "2026-11-01", Energy: 3, Mood: 3, SleepHours: ptr(25)},
+	} {
+		if err := s.PutCheckin(bad); err == nil {
+			t.Errorf("accepted %+v", bad)
+		}
+	}
+}
+
+func ptr(v float64) *float64 { return &v }

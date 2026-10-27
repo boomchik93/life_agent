@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"lifeagent/internal/calendar"
+	"lifeagent/internal/load"
 	"lifeagent/internal/store"
 )
 
@@ -65,6 +66,7 @@ func New(o Options) http.Handler {
 	v1.HandleFunc("GET /v1/settings", s.getSettings)
 	v1.HandleFunc("PUT /v1/settings", s.putSettings)
 	v1.HandleFunc("GET /v1/week", s.getWeek)
+	v1.HandleFunc("POST /v1/checkin", s.postCheckin)
 	mux.Handle("/v1/", s.rateLimit(s.auth(v1)))
 
 	return mux
@@ -104,6 +106,10 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "empty key")
 			return
 		}
+		if err := validateSetting(k, v); err != nil {
+			writeError(w, http.StatusBadRequest, k+": "+err.Error())
+			return
+		}
 		kv[k] = string(v)
 	}
 	if err := s.store.PutSettings(kv); err != nil {
@@ -111,6 +117,18 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.getSettings(w, r)
+}
+
+// validateSetting rejects values that would break the load rules; other keys are free-form.
+func validateSetting(key string, raw json.RawMessage) error {
+	var err error
+	switch key {
+	case settingThresholds:
+		_, err = load.ParseThresholds(raw)
+	case settingCalendarCategories:
+		_, err = load.ParseCalendarCategories(raw)
+	}
+	return err
 }
 
 func (s *Server) fail(w http.ResponseWriter, err error) {

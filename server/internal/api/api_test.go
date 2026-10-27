@@ -190,3 +190,142 @@ func TestClientIP(t *testing.T) {
 		t.Errorf("direct must ignore header: %q", got)
 	}
 }
+
+func riskServer(t *testing.T, events []calendar.Event) http.Handler {
+	t.Helper()
+	loc, _ := time.LoadLocation("Asia/Yekaterinburg")
+	st, err := store.Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	return New(Options{
+		Store: st, Token: testToken, Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		RatePerSec: 100, Burst: 100, Calendar: &fakeCollector{events: events}, Location: loc,
+		Now: func() time.Time { return time.Date(2026, 10, 27, 12, 0, 0, 0, loc) },
+	})
+}
+
+type risksBody struct {
+	Risks map[string]struct {
+		Color   string             `json:"color"`
+		Reasons []string           `json:"reasons"`
+		Metrics map[string]float64 `json:"metrics"`
+	} `json:"risks"`
+}
+
+func getRisks(t *testing.T, h http.Handler) risksBody {
+	t.Helper()
+	rec := do(h, "GET", "/v1/week", "Bearer "+testToken, "")
+	if rec.Code != 200 {
+		t.Fatalf("week %d %s", rec.Code, rec.Body)
+	}
+	var b risksBody
+	if err := json.Unmarshal(rec.Body.Bytes(), &b); err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+func TestWeekRisksAndCheckin(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Yekaterinburg")
+	day := func(d, h int) time.Time { return time.Date(2026, 10, d, h, 0, 0, 0, loc) }
+	h := riskServer(t, []calendar.Event{
+		{ID: "1", Source: "ics", Calendar: "Расписание", Start: day(26, 8), End: day(26, 15)}, // study 7h in a row
+		{ID: "2", Source: "google", Calendar: "КВН", Start: day(27, 18), End: day(27, 20)},    // not categorised until mapped
+		{ID: "3", Source: "google", Calendar: "КВН", Start: day(28, 18), End: day(28, 20)},
+	})
+	auth := "Bearer " + testToken
+
+	b := getRisks(t, h)
+	for name, want := range map[string]string{"overload": "red", "no_rest": "green", "sleep": "gray", "state": "gray"} {
+		if got := b.Risks[name].Color; got != want {
+			t.Errorf("%s = %s, want %s (%v)", name, got, want, b.Risks[name].Reasons)
+		}
+	}
+
+	// Map the calendar to hobby: 4h of rest is yellow.
+	if rec := do(h, "PUT", "/v1/settings", auth, `{"calendar_categories":{"КВН":"hobby"}}`); rec.Code != 200 {
+		t.Fatalf("settings %d %s", rec.Code, rec.Body)
+	}
+	if got := getRisks(t, h).Risks["no_rest"]; got.Color != "yellow" || got.Metrics["rest_hours"] != 4 {
+		t.Errorf("no_rest after mapping: %+v", got)
+	}
+
+	// Raise the thresholds: 7h in a row is no longer red.
+	if rec := do(h, "PUT", "/v1/settings", auth, `{"load_thresholds":{"study_streak_yellow_above":8,"study_streak_red_above":9,"study_day_yellow_above":8,"study_day_red_above":9}}`); rec.Code != 200 {
+		t.Fatalf("settings %d %s", rec.Code, rec.Body)
+	}
+	if got := getRisks(t, h).Risks["overload"].Color; got != "green" {
+		t.Errorf("overload with raised thresholds = %s", got)
+	}
+
+	// A check-in colours state and sleep.
+	rec := do(h, "POST", "/v1/checkin", auth, `{"energy":2,"mood":2,"sleep_hours":5}`)
+	if rec.Code != 200 {
+		t.Fatalf("checkin %d %s", rec.Code, rec.Body)
+	}
+	if !strings.Contains(rec.Body.String(), `"date":"2026-10-27"`) {
+		t.Errorf("default date is today: %s", rec.Body)
+	}
+	b = getRisks(t, h)
+	if b.Risks["state"].Color != "red" || b.Risks["sleep"].Color != "red" {
+		t.Errorf("after check-in: state %s, sleep %s", b.Risks["state"].Color, b.Risks["sleep"].Color)
+	}
+
+	// A second check-in for the same day replaces the first.
+	do(h, "POST", "/v1/checkin", auth, `{"energy":5,"mood":5}`)
+	b = getRisks(t, h)
+	if b.Risks["state"].Color != "green" || b.Risks["sleep"].Color != "gray" {
+		t.Errorf("after replace: state %s, sleep %s", b.Risks["state"].Color, b.Risks["sleep"].Color)
+	}
+}
+
+func TestCheckinValidation(t *testing.T) {
+	h := riskServer(t, nil)
+	auth := "Bearer " + testToken
+	for _, tt := range []struct {
+		name, body string
+		want       int
+	}{
+		{"ok with date", `{"date":"2026-10-25","energy":3,"mood":4,"sleep_hours":7.5}`, 200},
+		{"energy 0", `{"energy":0,"mood":3}`, 400},
+		{"energy missing", `{"mood":3}`, 400},
+		{"mood 6", `{"energy":3,"mood":6}`, 400},
+		{"sleep 25", `{"energy":3,"mood":3,"sleep_hours":25}`, 400},
+		{"sleep negative", `{"energy":3,"mood":3,"sleep_hours":-1}`, 400},
+		{"future date", `{"date":"2026-10-28","energy":3,"mood":3}`, 400},
+		{"bad date", `{"date":"yesterday","energy":3,"mood":3}`, 400},
+		{"unknown field", `{"energy":3,"mood":3,"note":"x"}`, 400},
+		{"not json", `nope`, 400},
+		{"string energy", `{"energy":"3","mood":3}`, 400},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if rec := do(h, "POST", "/v1/checkin", auth, tt.body); rec.Code != tt.want {
+				t.Fatalf("status %d, want %d: %s", rec.Code, tt.want, rec.Body)
+			}
+		})
+	}
+	if rec := do(h, "POST", "/v1/checkin", "", `{"energy":3,"mood":3}`); rec.Code != 401 {
+		t.Errorf("no token: %d", rec.Code)
+	}
+}
+
+func TestSettingsValidatesLoadKeys(t *testing.T) {
+	h := newServer(t, 100)
+	auth := "Bearer " + testToken
+	for _, bad := range []string{
+		`{"load_thresholds":{"unknown":1}}`,
+		`{"load_thresholds":{"sleep_red_below":9}}`,
+		`{"load_thresholds":"x"}`,
+		`{"calendar_categories":{"a":"fun"}}`,
+		`{"calendar_categories":[]}`,
+	} {
+		if rec := do(h, "PUT", "/v1/settings", auth, bad); rec.Code != 400 {
+			t.Errorf("%s: status %d", bad, rec.Code)
+		}
+	}
+	if rec := do(h, "PUT", "/v1/settings", auth, `{"load_thresholds":{"sleep_red_below":5}}`); rec.Code != 200 {
+		t.Errorf("valid override: %d %s", rec.Code, rec.Body)
+	}
+}
