@@ -1,0 +1,26 @@
+.env
+*.env
+!.env.example
+secrets/
+*.pem
+*.key
+sa-key.json
+
+# Go
+server/bin/
+server/*.db
+server/*.db-*
+data/
+
+# Flutter
+app/build/
+app/.dart_tool/
+app/.flutter-plugins*
+app/android/local.properties
+app/android/key.properties
+app/android/app/*.jks
+
+# Backups (health data)
+backups/
+
+.DS_Store

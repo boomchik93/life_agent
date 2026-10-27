@@ -1,0 +1,22 @@
+[Unit]
+Description=life-agent database backup
+
+[Service]
+Type=oneshot
+User=lifeagent
+Group=lifeagent
+WorkingDirectory=/opt/life-agent
+EnvironmentFile=/opt/life-agent/.env
+Environment=DB_PATH=/opt/life-agent/data/life-agent.db
+Environment=BACKUP_DIR=/opt/life-agent/backup
+ExecStart=/opt/life-agent/life-agent backup
+UMask=0077
+
+MemoryMax=200M
+CPUQuota=50%
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/opt/life-agent/data /opt/life-agent/backup
+ProtectHome=yes
+PrivateTmp=yes

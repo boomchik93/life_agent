@@ -1,0 +1,34 @@
+[Unit]
+Description=life-agent API
+After=network.target
+
+[Service]
+Type=simple
+User=lifeagent
+Group=lifeagent
+WorkingDirectory=/opt/life-agent
+EnvironmentFile=/opt/life-agent/.env
+Environment=LISTEN_ADDR=127.0.0.1:18010
+Environment=DB_PATH=/opt/life-agent/data/life-agent.db
+Environment=BACKUP_DIR=/opt/life-agent/backup
+ExecStart=/opt/life-agent/life-agent serve
+Restart=on-failure
+RestartSec=3
+UMask=0077
+
+MemoryMax=300M
+CPUQuota=50%
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/opt/life-agent/data
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target
