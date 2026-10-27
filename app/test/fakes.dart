@@ -1,5 +1,6 @@
 import 'package:life_agent/api.dart';
 import 'package:life_agent/card.dart';
+import 'package:life_agent/health.dart';
 import 'package:life_agent/llm_info.dart';
 import 'package:life_agent/models.dart';
 import 'package:life_agent/plan.dart';
@@ -11,6 +12,8 @@ class MemoryStorage implements AppStorage {
 
   ConnectionSettings connection;
   String? checkinDate;
+  bool healthOn = false;
+  String? healthAt, healthNote;
 
   @override
   Future<ConnectionSettings> loadConnection() async => connection;
@@ -20,6 +23,17 @@ class MemoryStorage implements AppStorage {
   Future<String?> lastCheckinDate() async => checkinDate;
   @override
   Future<void> saveCheckinDate(String ymd) async => checkinDate = ymd;
+  @override
+  Future<bool> healthSyncEnabled() async => healthOn;
+  @override
+  Future<void> saveHealthSyncEnabled(bool on) async => healthOn = on;
+  @override
+  Future<({String? at, String? note})> lastHealthSync() async => (at: healthAt, note: healthNote);
+  @override
+  Future<void> saveHealthSync(String at, String? note) async {
+    healthAt = at;
+    healthNote = note;
+  }
 }
 
 Risk risk(String color, {List<String> reasons = const [], Map<String, double> metrics = const {}}) =>
@@ -143,6 +157,23 @@ class FakeApi implements LifeApi {
       recentCalls: llm.recentCalls,
       warnings: llm.warnings,
     );
+  }
+
+  final healthSent = <HealthDay>[];
+  Object? healthError;
+  int healthDeleted = 3;
+  bool healthDeleteCalled = false;
+
+  @override
+  Future<void> sendHealthDay(HealthDay day) async {
+    if (healthError != null) throw healthError!;
+    healthSent.add(day);
+  }
+
+  @override
+  Future<int> deleteHealth() async {
+    healthDeleteCalled = true;
+    return healthDeleted;
   }
 
   PlanData planResult = samplePlan();

@@ -52,12 +52,22 @@ type Checkin struct {
 	SleepHours *float64
 }
 
+// SleepDay is the sleep measured by the watch or phone (Health Connect) for
+// the night that ended on Date.
+type SleepDay struct {
+	Date  string // YYYY-MM-DD, user's time zone
+	Hours float64
+}
+
 type Input struct {
 	Events   []Event
 	From, To time.Time // the week: [From, To)
 	Loc      *time.Location
 	Now      time.Time
 	Checkins []Checkin
+	// Sleep is measured sleep. For a day that has both, it wins over the
+	// hours typed into the check-in; a day with only one of them uses that one.
+	Sleep []SleepDay
 	// RestTracked reports that some calendar is mapped to hobby or rest. Without
 	// it a week with zero rest hours says nothing: rest may simply not be in the calendar.
 	RestTracked bool
@@ -347,20 +357,37 @@ func recent(in Input) []Checkin {
 
 func assessSleep(in Input) Risk {
 	r := newRisk()
-	var sum float64
-	n := 0
-	for _, c := range recent(in) {
-		if c.SleepHours != nil {
-			sum += *c.SleepHours
-			n++
+	now := in.Now.In(in.Loc)
+	last := now.Format("2006-01-02")
+	first := time.Date(now.Year(), now.Month(), now.Day()-(in.T.StateDays-1), 0, 0, 0, 0, in.Loc).Format("2006-01-02")
+	inRange := func(d string) bool { return d >= first && d <= last }
+
+	perDay := map[string]float64{}
+	for _, c := range in.Checkins {
+		if c.SleepHours != nil && inRange(c.Date) {
+			perDay[c.Date] = *c.SleepHours
 		}
 	}
-	if n == 0 {
-		r.Reasons = append(r.Reasons, "нет данных о сне: часы сна не указаны в чек-ине")
+	measured := 0
+	for _, s := range in.Sleep {
+		if inRange(s.Date) {
+			perDay[s.Date] = s.Hours
+			measured++
+		}
+	}
+	if len(perDay) == 0 {
+		r.Reasons = append(r.Reasons, "нет данных о сне: нет сводок Health Connect и часы сна не указаны в чек-ине")
 		return r
 	}
-	avg := round2(sum / float64(n))
+	var sum float64
+	for _, h := range perDay {
+		sum += h
+	}
+	avg := round2(sum / float64(len(perDay)))
 	r.Metrics["avg_sleep_hours"] = avg
+	if measured > 0 {
+		r.Metrics["measured_sleep_days"] = float64(measured)
+	}
 	r.add(below(avg, in.T.SleepYellowBelow, in.T.SleepRedBelow),
 		fmt.Sprintf("в среднем %s сна за %d дн. (порог: жёлтый ниже %s, красный ниже %s)",
 			hours(avg), in.T.StateDays, hours(in.T.SleepYellowBelow), hours(in.T.SleepRedBelow)))

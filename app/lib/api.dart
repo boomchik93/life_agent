@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 
 import 'card.dart';
+import 'health.dart';
 import 'llm_info.dart';
 import 'models.dart';
 import 'plan.dart';
@@ -47,6 +48,12 @@ abstract class LifeApi {
 
   /// Saves a task with a deadline. The same [key] never saves twice.
   Future<Written> saveTask(TaskRequest task, {required String key});
+
+  /// Sends the summary of one day from Health Connect.
+  Future<void> sendHealthDay(HealthDay day);
+
+  /// Deletes every health summary on the server. Returns how many there were.
+  Future<int> deleteHealth();
 
   /// Builds the week plan from the open tasks. Nothing is written.
   Future<PlanData> planWeek();
@@ -229,6 +236,17 @@ class HttpLifeApi implements LifeApi {
   @override
   Future<Written> saveTask(TaskRequest task, {required String key}) async =>
       _written(await _send('POST', _uri('/v1/items'), body: task.toJson(), idempotencyKey: key));
+
+  @override
+  Future<void> sendHealthDay(HealthDay day) async {
+    await _send('POST', _uri('/v1/health/daily'), body: day.toJson());
+  }
+
+  @override
+  Future<int> deleteHealth() async {
+    final j = await _send('DELETE', _uri('/v1/health'));
+    return (j['deleted'] as num?)?.toInt() ?? 0;
+  }
 
   @override
   Future<PlanData> planWeek() async {

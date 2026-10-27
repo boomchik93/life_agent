@@ -34,6 +34,7 @@ const _metricNames = {
   'rest_hours': 'Отдых и развлечения за неделю, ч',
   'free_evenings': 'Свободных вечеров',
   'avg_sleep_hours': 'Средний сон, ч',
+  'measured_sleep_days': 'Дней со сном по данным часов',
   'avg_score': 'Среднее энергии и настроения',
 };
 

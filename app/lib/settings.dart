@@ -33,6 +33,14 @@ abstract class AppStorage {
   /// Date (YYYY-MM-DD) of the last saved check-in, to show the card once a day.
   Future<String?> lastCheckinDate();
   Future<void> saveCheckinDate(String ymd);
+
+  /// Whether the background health sync is on.
+  Future<bool> healthSyncEnabled();
+  Future<void> saveHealthSyncEnabled(bool on);
+
+  /// When the last sync ran (ISO 8601) and why it sent nothing, if it did not.
+  Future<({String? at, String? note})> lastHealthSync();
+  Future<void> saveHealthSync(String at, String? note);
 }
 
 /// The token goes to the system's secure storage, the rest to ordinary preferences.
@@ -44,6 +52,9 @@ class PlatformStorage implements AppStorage {
   static const _kUrl = 'base_url';
   static const _kToken = 'token';
   static const _kCheckin = 'last_checkin_date';
+  static const _kHealthOn = 'health_sync_on';
+  static const _kHealthAt = 'health_sync_at';
+  static const _kHealthNote = 'health_sync_note';
 
   @override
   Future<ConnectionSettings> loadConnection() async {
@@ -68,6 +79,32 @@ class PlatformStorage implements AppStorage {
   @override
   Future<void> saveCheckinDate(String ymd) async =>
       (await SharedPreferences.getInstance()).setString(_kCheckin, ymd);
+
+  @override
+  Future<bool> healthSyncEnabled() async =>
+      (await SharedPreferences.getInstance()).getBool(_kHealthOn) ?? false;
+
+  @override
+  Future<void> saveHealthSyncEnabled(bool on) async =>
+      (await SharedPreferences.getInstance()).setBool(_kHealthOn, on);
+
+  @override
+  Future<({String? at, String? note})> lastHealthSync() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload(); // the background isolate wrote it
+    return (at: prefs.getString(_kHealthAt), note: prefs.getString(_kHealthNote));
+  }
+
+  @override
+  Future<void> saveHealthSync(String at, String? note) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kHealthAt, at);
+    if (note == null) {
+      await prefs.remove(_kHealthNote);
+    } else {
+      await prefs.setString(_kHealthNote, note);
+    }
+  }
 }
 
 /// Builds the API client for the stored settings; null while they are incomplete.

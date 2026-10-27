@@ -199,6 +199,43 @@ func TestNoRest(t *testing.T) {
 	}
 }
 
+func TestMeasuredSleep(t *testing.T) {
+	ci := func(date string, sleep *float64) Checkin {
+		return Checkin{Date: date, Energy: 3, Mood: 3, SleepHours: sleep}
+	}
+	tests := []struct {
+		name  string
+		cs    []Checkin
+		sleep []SleepDay
+		want  Color
+		avg   float64
+	}{
+		{"measured sleep alone", nil, []SleepDay{{"2026-10-27", 5}}, Red, 5},
+		{"measured wins over the check-in of the same day", []Checkin{ci("2026-10-27", f(8))}, []SleepDay{{"2026-10-27", 5}}, Red, 5},
+		{"check-in fills the day without a measurement", []Checkin{ci("2026-10-26", f(7))}, []SleepDay{{"2026-10-27", 6}}, Green, 6.5},
+		{"old measurement ignored", nil, []SleepDay{{"2026-10-20", 3}}, Gray, 0},
+		{"future measurement ignored", nil, []SleepDay{{"2026-10-28", 3}}, Gray, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			in := input()
+			in.Checkins, in.Sleep = tt.cs, tt.sleep
+			r := Assess(in).Sleep
+			if r.Color != tt.want {
+				t.Fatalf("color %s, want %s; %v", r.Color, tt.want, r.Reasons)
+			}
+			if tt.want != Gray && r.Metrics["avg_sleep_hours"] != tt.avg {
+				t.Errorf("avg %v, want %v", r.Metrics["avg_sleep_hours"], tt.avg)
+			}
+		})
+	}
+	in := input()
+	in.Sleep = []SleepDay{{"2026-10-27", 7}}
+	if st := Assess(in).State; st.Color != Gray {
+		t.Errorf("measured sleep must not invent a state: %s", st.Color)
+	}
+}
+
 func TestSleep(t *testing.T) {
 	ci := func(date string, sleep *float64) Checkin {
 		return Checkin{Date: date, Energy: 3, Mood: 3, SleepHours: sleep}

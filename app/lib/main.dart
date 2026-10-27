@@ -1,12 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'background.dart';
 import 'controller.dart';
 import 'screens/home_screen.dart';
 import 'settings.dart';
 
-void main() {
-  runApp(LifeAgentApp(controller: AppController(PlatformStorage())..load()));
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final storage = PlatformStorage();
+  try {
+    await WorkmanagerScheduler.init();
+    // The system keeps the schedule, but a reinstall or an update may drop it.
+    if (await storage.healthSyncEnabled()) await WorkmanagerScheduler().start();
+  } catch (_) {
+    // Background work is optional: the app works without it.
+  }
+  runApp(LifeAgentApp(controller: AppController(storage)..load()));
 }
 
 class LifeAgentApp extends StatelessWidget {

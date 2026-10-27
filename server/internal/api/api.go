@@ -90,6 +90,8 @@ func New(o Options) http.Handler {
 	v1.HandleFunc("POST /v1/check", s.postCheck)
 	v1.HandleFunc("POST /v1/events", s.postEvents)
 	v1.HandleFunc("POST /v1/items", s.postItems)
+	v1.HandleFunc("POST /v1/health/daily", s.postHealthDaily)
+	v1.HandleFunc("DELETE /v1/health", s.deleteHealth)
 	v1.HandleFunc("GET /v1/items", s.getItems)
 	v1.HandleFunc("PATCH /v1/items/{id}", s.patchItem)
 	v1.HandleFunc("POST /v1/plan/week", s.postPlanWeek)

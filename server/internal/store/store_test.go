@@ -27,7 +27,7 @@ func TestMigrateIdempotent(t *testing.T) {
 	}
 	defer s2.Close()
 	var n int
-	if err := s2.DB.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&n); err != nil || n != 5 {
+	if err := s2.DB.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&n); err != nil || n != 6 {
 		t.Fatalf("migrations applied = %d, err %v", n, err)
 	}
 }
@@ -251,5 +251,31 @@ func TestPlanChunks(t *testing.T) {
 	}
 	if m, _ := s.PlannedMinutes("apply-1"); m[it.ID] != 0 {
 		t.Fatalf("a retry must not count its own pieces: %v", m)
+	}
+}
+
+func TestHealth(t *testing.T) {
+	s, _ := open(t)
+	f := func(v float64) *float64 { return &v }
+	if err := s.PutHealth(Health{Date: "2026-10-27", SleepHours: f(7.5), AvgHR: f(62)}); err != nil {
+		t.Fatal(err)
+	}
+	// A later partial reading keeps what it does not mention.
+	if err := s.PutHealth(Health{Date: "2026-10-27", Stress: f(30), AvgHR: f(64)}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Healths("2026-10-01", "2026-10-31")
+	if err != nil || len(got) != 1 {
+		t.Fatalf("healths = %+v err %v", got, err)
+	}
+	h := got[0]
+	if *h.SleepHours != 7.5 || *h.AvgHR != 64 || *h.Stress != 30 {
+		t.Errorf("merged = sleep %v hr %v stress %v", *h.SleepHours, *h.AvgHR, *h.Stress)
+	}
+	if n, err := s.DeleteHealth(); err != nil || n != 1 {
+		t.Fatalf("delete = %d %v", n, err)
+	}
+	if got, _ := s.Healths("2026-10-01", "2026-10-31"); len(got) != 0 {
+		t.Errorf("rows left: %+v", got)
 	}
 }

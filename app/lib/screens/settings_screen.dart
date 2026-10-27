@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
 
 import '../api.dart';
+import '../background.dart';
 import '../controller.dart';
+import '../health.dart';
 import '../settings.dart';
+import 'health_screen.dart';
 import 'models_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key, required this.controller});
+  const SettingsScreen({super.key, required this.controller, this.healthSource, this.scheduler});
 
   final AppController controller;
+
+  /// Replaceable in tests; the phone uses Health Connect and WorkManager.
+  final HealthSource? healthSource;
+  final SyncScheduler? scheduler;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -132,6 +139,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
               enabled: widget.controller.api != null,
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => ModelsScreen(api: widget.controller.api!)),
+              ),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.favorite),
+              title: const Text('Здоровье'),
+              subtitle: Text(widget.controller.api == null
+                  ? 'Сначала сохрани адрес и токен'
+                  : 'Сон и пульс из Health Connect, фоновая отправка'),
+              trailing: const Icon(Icons.chevron_right),
+              enabled: widget.controller.api != null,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => HealthScreen(
+                    api: widget.controller.api!,
+                    storage: widget.controller.storage,
+                    source: widget.healthSource ?? HealthConnectSource(),
+                    scheduler: widget.scheduler ?? WorkmanagerScheduler(),
+                  ),
+                ),
               ),
             ),
           ],

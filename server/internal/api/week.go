@@ -67,9 +67,19 @@ func (s *Server) assess(events []calendar.Event, from, to time.Time) (load.Asses
 		return load.Assessment{}, err
 	}
 
+	health, err := s.store.Healths(first.Format("2006-01-02"), now.Format("2006-01-02"))
+	if err != nil {
+		return load.Assessment{}, err
+	}
+
 	in := load.Input{
 		From: from, To: to, Loc: s.loc, Now: now, T: t,
 		RestTracked: cats.RestTracked(),
+	}
+	for _, h := range health {
+		if h.SleepHours != nil {
+			in.Sleep = append(in.Sleep, load.SleepDay{Date: h.Date, Hours: *h.SleepHours})
+		}
 	}
 	for _, e := range events {
 		in.Events = append(in.Events, load.Event{Start: e.Start, End: e.End, AllDay: e.AllDay, Category: eventCategory(cats, e)})
