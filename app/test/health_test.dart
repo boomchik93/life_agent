@@ -14,6 +14,9 @@ class FakeSource implements HealthSource {
   bool grants = true;
   bool installed = false;
   List<Sample> samples = [];
+  int? stepCount;
+  int hrv = 0;
+  final stepRequests = <(DateTime, DateTime)>[];
   final reads = <(DateTime, DateTime)>[];
 
   @override
@@ -28,6 +31,15 @@ class FakeSource implements HealthSource {
   Future<bool> backgroundAllowed() async => bg;
   @override
   Future<void> install() async => installed = true;
+  @override
+  Future<int?> steps(DateTime from, DateTime to) async {
+    stepRequests.add((from, to));
+    return stepCount;
+  }
+
+  @override
+  Future<int> hrvDays(DateTime now) async => hrv;
+
   @override
   Future<List<Sample>> read(DateTime from, DateTime to) async {
     reads.add((from, to));
@@ -91,6 +103,30 @@ void main() {
       expect(d.sleepHours, isNull);
     });
 
+    test('resting heart rate, workouts and steps join the summary', () {
+      final d = summarizeDay(
+        day,
+        [
+          Sample(SampleKind.restingHeartRate, DateTime(2026, 10, 28, 6), DateTime(2026, 10, 28, 6), 56),
+          Sample(SampleKind.restingHeartRate, DateTime(2026, 10, 28, 7), DateTime(2026, 10, 28, 7), 400), // glitch
+          Sample(SampleKind.workout, DateTime(2026, 10, 28, 18), DateTime(2026, 10, 28, 18, 40)),
+          Sample(SampleKind.workout, DateTime(2026, 10, 28, 18, 10), DateTime(2026, 10, 28, 18, 50)), // the watch repeats it
+          Sample(SampleKind.workout, DateTime(2026, 10, 27, 18), DateTime(2026, 10, 27, 19)), // yesterday
+        ],
+        steps: 8421,
+      );
+      expect(d.restingHr, 56);
+      expect(d.workoutMin, 50, reason: 'overlapping records are one workout');
+      expect(d.steps, 8421);
+      expect(d.toJson(), {'date': '2026-10-28', 'resting_hr': 56, 'steps': 8421, 'workout_min': 50});
+    });
+
+    test('zero steps and no workouts are unknown, not zero', () {
+      final d = summarizeDay(day, const [], steps: 0);
+      expect(d.isEmpty, isTrue);
+      expect(d.toJson(), {'date': '2026-10-28'});
+    });
+
     test('nothing in, nothing out; the body leaves out unknown fields', () {
       final d = summarizeDay(day, const []);
       expect(d.isEmpty, isTrue);
@@ -124,6 +160,20 @@ void main() {
         expect(src.reads, isEmpty);
         expect(api.healthSent, isEmpty);
       }
+    });
+
+    test('the steps of each day are asked for the whole day and sent', () async {
+      final api = FakeApi();
+      final src = FakeSource()
+        ..stepCount = 7000
+        ..samples = [Sample(SampleKind.workout, DateTime(2026, 10, 28, 9), DateTime(2026, 10, 28, 9, 30))];
+      final r = await HealthSync(api: api, source: src, now: () => now).run();
+      expect(r.sent, 2);
+      expect(api.healthSent.map((d) => d.steps), [7000, 7000]);
+      expect(api.healthSent.last.workoutMin, 30);
+      expect(src.stepRequests.first.$1, DateTime(2026, 10, 27));
+      expect(src.stepRequests.first.$2, DateTime(2026, 10, 28), reason: 'a finished day ends at midnight');
+      expect(src.stepRequests.last.$2, now, reason: 'today ends now');
     });
 
     test('empty Health Connect is reported, not sent as zeros', () async {
@@ -211,6 +261,19 @@ void main() {
     testWidgets('without the background permission the screen says so', (t) async {
       await open(t, bg: false);
       expect(find.textContaining('Фоновое чтение не разрешено'), findsOneWidget);
+    });
+
+    testWidgets('the HRV check says what the watch gives', (t) async {
+      final (_, src, _, _) = await open(t);
+      await t.scrollUntilVisible(find.text('Проверить HRV и стресс'), 200);
+      src.hrv = 0;
+      await t.tap(find.text('Проверить HRV и стресс'));
+      await t.pumpAndSettle();
+      expect(find.textContaining('HRV и стресс не используем'), findsOneWidget);
+      src.hrv = 5;
+      await t.tap(find.text('Проверить HRV и стресс'));
+      await t.pumpAndSettle();
+      expect(find.textContaining('HRV есть за 5 из 7 дней'), findsOneWidget);
     });
 
     testWidgets('deleting asks first, then clears the server', (t) async {

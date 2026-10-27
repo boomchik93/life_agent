@@ -101,6 +101,15 @@ class _HealthScreenState extends State<HealthScreen> {
         await _refresh();
       });
 
+  /// One-off check: does the watch give HRV through Samsung Health? Health
+  /// Connect has no stress type at all, so there is nothing to check for it.
+  Future<void> _checkHrv() => _guard(() async {
+        final days = await widget.source.hrvDays(widget.now?.call() ?? DateTime.now());
+        _say(days > 0
+            ? 'HRV есть за $days из 7 дней. Стресса в Health Connect нет: его мы не используем.'
+            : 'HRV в Health Connect нет (или доступ не выдан). HRV и стресс не используем.');
+      });
+
   Future<void> _toggle(bool on) => _guard(() async {
         await widget.storage.saveHealthSyncEnabled(on);
         await applyBackground(widget.storage, widget.scheduler);
@@ -137,7 +146,7 @@ class _HealthScreenState extends State<HealthScreen> {
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                const Text('На сервер уходят только дневные сводки: часы сна и средний пульс. '
+                const Text('На сервер уходят только дневные сводки: сон, пульс, пульс покоя, шаги и минуты тренировок. '
                     'Сырые замеры остаются в Health Connect.'),
                 const SizedBox(height: 16),
                 _statusCard(status),
@@ -175,6 +184,11 @@ class _HealthScreenState extends State<HealthScreen> {
                   OutlinedButton(
                     onPressed: _busy ? null : _syncNow,
                     child: const Text('Отправить сейчас'),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton(
+                    onPressed: _busy ? null : _checkHrv,
+                    child: const Text('Проверить HRV и стресс'),
                   ),
                 ],
                 const Divider(height: 32),

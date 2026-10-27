@@ -15,9 +15,14 @@ type healthRequest struct {
 	SleepHours *float64 `json:"sleep_hours"`
 	AvgHR      *float64 `json:"avg_hr"`
 	Stress     *float64 `json:"stress"`
+	RestingHR  *float64 `json:"resting_hr"`
+	Steps      *int     `json:"steps"`
+	WorkoutMin *int     `json:"workout_min"`
 }
 
 func inRange(v *float64, lo, hi float64) bool { return v == nil || (*v >= lo && *v <= hi) }
+
+func intInRange(v *int, lo, hi int) bool { return v == nil || (*v >= lo && *v <= hi) }
 
 // postHealthDaily stores one day's summary from Health Connect. Raw samples
 // never reach the server, and nothing here is logged.
@@ -46,8 +51,8 @@ func (s *Server) postHealthDaily(w http.ResponseWriter, r *http.Request) {
 	case in.Date > today:
 		writeError(w, http.StatusBadRequest, "date must not be in the future")
 		return
-	case in.SleepHours == nil && in.AvgHR == nil && in.Stress == nil:
-		writeError(w, http.StatusBadRequest, "at least one of sleep_hours, avg_hr, stress is required")
+	case in.SleepHours == nil && in.AvgHR == nil && in.Stress == nil && in.RestingHR == nil && in.Steps == nil && in.WorkoutMin == nil:
+		writeError(w, http.StatusBadRequest, "at least one of sleep_hours, avg_hr, stress, resting_hr, steps, workout_min is required")
 		return
 	case !inRange(in.SleepHours, 0, 24):
 		writeError(w, http.StatusBadRequest, "sleep_hours must be 0..24")
@@ -58,8 +63,18 @@ func (s *Server) postHealthDaily(w http.ResponseWriter, r *http.Request) {
 	case !inRange(in.Stress, 0, 100):
 		writeError(w, http.StatusBadRequest, "stress must be 0..100")
 		return
+	case !inRange(in.RestingHR, 20, 200):
+		writeError(w, http.StatusBadRequest, "resting_hr must be 20..200")
+		return
+	case !intInRange(in.Steps, 0, 200000):
+		writeError(w, http.StatusBadRequest, "steps must be 0..200000")
+		return
+	case !intInRange(in.WorkoutMin, 0, 1440):
+		writeError(w, http.StatusBadRequest, "workout_min must be 0..1440")
+		return
 	}
-	h := store.Health{Date: in.Date, SleepHours: in.SleepHours, AvgHR: in.AvgHR, Stress: in.Stress}
+	h := store.Health{Date: in.Date, SleepHours: in.SleepHours, AvgHR: in.AvgHR, Stress: in.Stress,
+		RestingHR: in.RestingHR, Steps: in.Steps, WorkoutMin: in.WorkoutMin}
 	if err := s.store.PutHealth(h); err != nil {
 		s.fail(w, err)
 		return

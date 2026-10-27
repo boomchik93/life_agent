@@ -5,6 +5,11 @@
     <!-- Health Connect: only sleep and heart rate, read-only. -->
     <uses-permission android:name="android.permission.health.READ_SLEEP"/>
     <uses-permission android:name="android.permission.health.READ_HEART_RATE"/>
+    <uses-permission android:name="android.permission.health.READ_RESTING_HEART_RATE"/>
+    <uses-permission android:name="android.permission.health.READ_STEPS"/>
+    <uses-permission android:name="android.permission.health.READ_EXERCISE"/>
+    <!-- Only for the one-off check whether the watch gives HRV; never sent. -->
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE_VARIABILITY"/>
     <!-- Lets the periodic task read while the app is closed. -->
     <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND"/>
     <application

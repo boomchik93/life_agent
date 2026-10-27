@@ -284,6 +284,18 @@ func TestHealth(t *testing.T) {
 		t.Fatalf("healths = %+v err %v", got, err)
 	}
 	h := got[0]
+	if h.Steps != nil || h.WorkoutMin != nil || h.RestingHR != nil {
+		t.Errorf("unknown fields must stay nil: %+v", h)
+	}
+	steps, workout, rest := 8200, 45, 58.0
+	if err := s.PutHealth(Health{Date: "2026-10-27", Steps: &steps, WorkoutMin: &workout, RestingHR: &rest}); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = s.Healths("2026-10-01", "2026-10-31")
+	h = got[0]
+	if *h.Steps != 8200 || *h.WorkoutMin != 45 || *h.RestingHR != 58 || *h.SleepHours != 7.5 {
+		t.Errorf("extra fields merged badly: %+v", h)
+	}
 	if *h.SleepHours != 7.5 || *h.AvgHR != 64 || *h.Stress != 30 {
 		t.Errorf("merged = sleep %v hr %v stress %v", *h.SleepHours, *h.AvgHR, *h.Stress)
 	}

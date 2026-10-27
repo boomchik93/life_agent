@@ -4,7 +4,7 @@ import 'package:health/health.dart';
 
 import 'api.dart';
 
-enum SampleKind { sleepStage, sleepSession, heartRate }
+enum SampleKind { sleepStage, sleepSession, heartRate, restingHeartRate, workout }
 
 /// One reading from Health Connect, reduced to what the summary needs.
 class Sample {
@@ -17,15 +17,28 @@ class Sample {
 
 /// The summary of one day: the only thing that leaves the phone.
 class HealthDay {
-  const HealthDay({required this.date, this.sleepHours, this.avgHr});
+  const HealthDay({required this.date, this.sleepHours, this.avgHr, this.restingHr, this.steps, this.workoutMin});
 
   final String date; // YYYY-MM-DD
   final double? sleepHours;
   final double? avgHr;
+  final double? restingHr;
+  final int? steps;
 
-  bool get isEmpty => sleepHours == null && avgHr == null;
+  /// Minutes of recorded workouts; they count as sport.
+  final int? workoutMin;
 
-  Map<String, dynamic> toJson() => {'date': date, 'sleep_hours': ?sleepHours, 'avg_hr': ?avgHr};
+  bool get isEmpty =>
+      sleepHours == null && avgHr == null && restingHr == null && steps == null && workoutMin == null;
+
+  Map<String, dynamic> toJson() => {
+        'date': date,
+        'sleep_hours': ?sleepHours,
+        'avg_hr': ?avgHr,
+        'resting_hr': ?restingHr,
+        'steps': ?steps,
+        'workout_min': ?workoutMin,
+      };
 }
 
 String _ymd(DateTime d) =>
@@ -61,7 +74,7 @@ double _round(double v, int digits) {
 /// Sleep is the night that ended on [day] and began after 18:00 the day
 /// before. Sleep stages are preferred; a bare session counts only when the
 /// watch gave no stages. Heart rate is the mean of the day's readings.
-HealthDay summarizeDay(DateTime day, List<Sample> samples) {
+HealthDay summarizeDay(DateTime day, List<Sample> samples, {int? steps}) {
   final nightFrom = DateTime(day.year, day.month, day.day - 1, 18);
   bool night(Sample s) => _sameDay(s.to, day) && !s.from.isBefore(nightFrom) && s.to.isAfter(s.from);
 
@@ -77,7 +90,27 @@ HealthDay summarizeDay(DateTime day, List<Sample> samples) {
       if (s.kind == SampleKind.heartRate && _sameDay(s.from, day) && s.value >= 20 && s.value <= 250) s.value,
   ];
   final avg = hr.isEmpty ? null : _round(hr.reduce((a, b) => a + b) / hr.length, 1);
-  return HealthDay(date: _ymd(day), sleepHours: sleep, avgHr: avg);
+
+  final resting = [
+    for (final s in samples)
+      if (s.kind == SampleKind.restingHeartRate && _sameDay(s.from, day) && s.value >= 20 && s.value <= 200) s.value,
+  ];
+  final restingAvg = resting.isEmpty ? null : _round(resting.reduce((a, b) => a + b) / resting.length, 1);
+
+  // Workouts that began on the day; overlapping records (phone and watch) count once.
+  final workout = _union([
+    for (final s in samples)
+      if (s.kind == SampleKind.workout && _sameDay(s.from, day) && s.to.isAfter(s.from)) (s.from, s.to),
+  ]).inMinutes;
+
+  return HealthDay(
+    date: _ymd(day),
+    sleepHours: sleep,
+    avgHr: avg,
+    restingHr: restingAvg,
+    steps: steps != null && steps > 0 ? steps : null,
+    workoutMin: workout > 0 && workout <= 24 * 60 ? workout : null,
+  );
 }
 
 enum HealthStatus { unsupported, notInstalled, needsAccess, ready }
@@ -96,6 +129,15 @@ abstract class HealthSource {
   Future<void> install();
 
   Future<List<Sample>> read(DateTime from, DateTime to);
+
+  /// Steps in the period, counted once even if the phone and the watch both
+  /// record them (Health Connect merges the sources). Null when unknown.
+  Future<int?> steps(DateTime from, DateTime to);
+
+  /// Asks for the heart-rate-variability permission and reports how many of
+  /// the last 7 days have such readings. Nothing is sent anywhere: this tells
+  /// the user whether the watch gives HRV at all.
+  Future<int> hrvDays(DateTime now);
 }
 
 class HealthConnectSource implements HealthSource {
@@ -111,6 +153,8 @@ class HealthConnectSource implements HealthSource {
     HealthDataType.SLEEP_REM,
     HealthDataType.SLEEP_ASLEEP,
     HealthDataType.HEART_RATE,
+    HealthDataType.RESTING_HEART_RATE,
+    HealthDataType.WORKOUT,
   ];
 
   Future<void> _configure() async {
@@ -132,6 +176,8 @@ class HealthConnectSource implements HealthSource {
   Future<bool> requestAccess() async {
     await _configure();
     final ok = await _h.requestAuthorization(_types);
+    // Steps have their own permission; a refusal only leaves the steps out.
+    if (ok) await _h.requestAuthorization(_stepsTypes);
     if (ok && await _h.isHealthDataInBackgroundAvailable()) {
       await _h.requestHealthDataInBackgroundAuthorization();
     }
@@ -158,13 +204,43 @@ class HealthConnectSource implements HealthSource {
       final kind = switch (p.type) {
         HealthDataType.SLEEP_SESSION => SampleKind.sleepSession,
         HealthDataType.HEART_RATE => SampleKind.heartRate,
+        HealthDataType.RESTING_HEART_RATE => SampleKind.restingHeartRate,
+        HealthDataType.WORKOUT => SampleKind.workout,
         _ => SampleKind.sleepStage,
       };
       out.add(Sample(kind, p.dateFrom.toLocal(), p.dateTo.toLocal(), value.toDouble()));
     }
     return out;
   }
+
+  @override
+  Future<int?> steps(DateTime from, DateTime to) async {
+    await _configure();
+    try {
+      if (!(await _h.hasPermissions(_stepsTypes) ?? false)) return null;
+      return await _h.getTotalStepsInInterval(from, to);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<int> hrvDays(DateTime now) async {
+    await _configure();
+    const types = [HealthDataType.HEART_RATE_VARIABILITY_RMSSD];
+    if (!(await _h.hasPermissions(types) ?? false) && !await _h.requestAuthorization(types)) return 0;
+    final points = await _h.getHealthDataFromTypes(
+      types: types,
+      startTime: now.subtract(const Duration(days: 7)),
+      endTime: now,
+    );
+    return {for (final p in points) _ymd(p.dateFrom.toLocal())}.length;
+  }
 }
+
+/// The two readings Health Connect needs a separate permission for are asked
+/// for on their own, so a refusal does not break sleep and heart rate.
+const _stepsTypes = [HealthDataType.STEPS];
 
 class SyncResult {
   const SyncResult({this.sent = 0, this.skipped});
@@ -199,7 +275,9 @@ class HealthSync {
     final samples = await source.read(DateTime(today.year, today.month, today.day - 2, 18), now);
     var sent = 0;
     for (final day in [DateTime(today.year, today.month, today.day - 1), today]) {
-      final summary = summarizeDay(day, samples);
+      final end = DateTime(day.year, day.month, day.day + 1);
+      final steps = await source.steps(day, end.isAfter(now) ? now : end);
+      final summary = summarizeDay(day, samples, steps: steps);
       if (summary.isEmpty) continue;
       await api.sendHealthDay(summary);
       sent++;
