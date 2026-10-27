@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -16,6 +17,8 @@ import (
 	"lifeagent/internal/api"
 	"lifeagent/internal/calendar"
 	"lifeagent/internal/config"
+	"lifeagent/internal/llm"
+	"lifeagent/internal/parse"
 	"lifeagent/internal/store"
 )
 
@@ -51,6 +54,8 @@ func run(envFile, cmd string, logger *slog.Logger) error {
 	switch cmd {
 	case "", "serve":
 		return serve(cfg, st, logger)
+	case "eval":
+		return runEval(cfg, st, flag.Args()[1:])
 	case "backup":
 		path, err := st.Backup(cfg.BackupDir, backupKeep, time.Now())
 		if err != nil {
@@ -59,7 +64,7 @@ func run(envFile, cmd string, logger *slog.Logger) error {
 		fmt.Println(path)
 		return nil
 	default:
-		return fmt.Errorf("unknown command %q (want serve or backup)", cmd)
+		return fmt.Errorf("unknown command %q (want serve, backup or eval)", cmd)
 	}
 }
 
@@ -91,6 +96,34 @@ func buildCalendars(ctx context.Context, cfg config.Config, logger *slog.Logger)
 	return agg, nil
 }
 
+// buildLLM wires the language-model stack; it returns nils when there is no API key.
+func buildLLM(cfg config.Config, st *store.Store, logger *slog.Logger) (*llm.Client, *api.LLMInfo, error) {
+	if cfg.OpenRouterKey == "" {
+		logger.Warn("OPENROUTER_API_KEY is not set: phrase parsing is off")
+		return nil, nil, nil
+	}
+	defaults, err := llm.DefaultConfig()
+	if err != nil {
+		return nil, nil, err
+	}
+	provider := llm.NewOpenAI(defaults.Provider.BaseURL, cfg.OpenRouterKey,
+		time.Duration(defaults.Limits.TimeoutSec)*time.Second)
+	catalog := llm.NewOpenRouterCatalog(defaults.Provider.BaseURL)
+	client := &llm.Client{
+		Provider: provider, ProviderName: defaults.Provider.Name,
+		Quota: provider, Catalog: catalog, Journal: st,
+		// Read on every call: a change made in the app applies without a restart.
+		Config: func() (llm.Config, error) {
+			kv, err := st.Settings()
+			if err != nil {
+				return llm.Config{}, err
+			}
+			return llm.Effective(defaults, kv)
+		},
+	}
+	return client, &api.LLMInfo{Defaults: defaults, Catalog: catalog, Quota: provider}, nil
+}
+
 func serve(cfg config.Config, st *store.Store, logger *slog.Logger) error {
 	var collector api.Collector
 	agg, err := buildCalendars(context.Background(), cfg, logger)
@@ -101,16 +134,26 @@ func serve(cfg config.Config, st *store.Store, logger *slog.Logger) error {
 		collector = agg
 	}
 
+	opts := api.Options{
+		Store: st, Token: cfg.Token, Logger: logger,
+		Calendar: collector, Location: cfg.Location,
+		RatePerSec: 5, Burst: 20,
+	}
+	client, info, err := buildLLM(cfg, st, logger)
+	if err != nil {
+		return err
+	}
+	if client != nil {
+		opts.Parser = &parse.Parser{LLM: client, Loc: cfg.Location, Now: time.Now}
+		opts.LLM = info
+	}
+
 	srv := &http.Server{
-		Addr: cfg.Listen,
-		Handler: api.New(api.Options{
-			Store: st, Token: cfg.Token, Logger: logger,
-			Calendar: collector, Location: cfg.Location,
-			RatePerSec: 5, Burst: 20,
-		}),
+		Addr:              cfg.Listen,
+		Handler:           api.New(opts),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      60 * time.Second,
+		WriteTimeout:      100 * time.Second, // a parse may take up to four model calls
 		IdleTimeout:       120 * time.Second,
 	}
 
@@ -133,3 +176,5 @@ func serve(cfg config.Config, st *store.Store, logger *slog.Logger) error {
 	}
 	return nil
 }
+
+func nopLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }

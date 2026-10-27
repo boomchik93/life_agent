@@ -27,7 +27,7 @@ func TestMigrateIdempotent(t *testing.T) {
 	}
 	defer s2.Close()
 	var n int
-	if err := s2.DB.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&n); err != nil || n != 2 {
+	if err := s2.DB.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&n); err != nil || n != 3 {
 		t.Fatalf("migrations applied = %d, err %v", n, err)
 	}
 }
@@ -122,3 +122,37 @@ func TestCheckins(t *testing.T) {
 }
 
 func ptr(v float64) *float64 { return &v }
+
+func TestLLMCalls(t *testing.T) {
+	s, _ := open(t)
+	tok := 12
+	base := time.Date(2026, 10, 27, 10, 0, 0, 0, time.UTC)
+	for i, r := range []string{"limit", "ok", "ok"} {
+		c := LLMCall{Time: base.Add(time.Duration(i) * time.Hour), Task: "parse", Provider: "openrouter", Model: "m/x:free",
+			LatencyMS: 120, Result: r, Attempt: 1, ChainPos: i, Source: "user"}
+		if r == "ok" {
+			c.PromptTokens, c.CompletionTokens = &tok, &tok
+		}
+		if err := s.AddLLMCall(c); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n, err := s.CountLLMCalls(base.Add(30 * time.Minute)); err != nil || n != 2 {
+		t.Fatalf("count %d, err %v", n, err)
+	}
+	got, err := s.RecentLLMCalls(2)
+	if err != nil || len(got) != 2 {
+		t.Fatalf("recent %v, err %v", got, err)
+	}
+	if got[0].ChainPos != 2 || got[0].PromptTokens == nil || *got[0].PromptTokens != 12 || !got[0].Time.Equal(base.Add(2*time.Hour)) {
+		t.Errorf("newest first: %+v", got[0])
+	}
+	bad := LLMCall{Time: base, Task: "parse", Provider: "p", Model: "m", Result: "weird", Attempt: 1, Source: "user"}
+	if err := s.AddLLMCall(bad); err == nil {
+		t.Error("accepted unknown result")
+	}
+	bad.Result, bad.Source = "ok", "bot"
+	if err := s.AddLLMCall(bad); err == nil {
+		t.Error("accepted unknown source")
+	}
+}

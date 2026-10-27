@@ -1,0 +1,653 @@
+{
+ "now": "2026-10-28T12:00:00+05:00",
+ "cases": [
+  {
+   "text": "КВН в пятницу с 18 до 20",
+   "expect": {
+    "kind": "event",
+    "title": "КВН",
+    "date": "2026-10-30",
+    "start": "2026-10-30 18:00",
+    "end": "2026-10-30 20:00",
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [],
+    "category": "hobby"
+   }
+  },
+  {
+   "text": "завтра в 9 утра пара по матану на полтора часа",
+   "expect": {
+    "kind": "event",
+    "title": "Матан",
+    "date": "2026-10-29",
+    "start": "2026-10-29 09:00",
+    "end": "2026-10-29 10:30",
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [],
+    "category": "study"
+   }
+  },
+  {
+   "text": "послезавтра стоматолог в 15:30",
+   "expect": {
+    "kind": "event",
+    "title": "Стоматолог",
+    "date": "2026-10-30",
+    "start": "2026-10-30 15:30",
+    "end": null,
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [
+     "time_to"
+    ],
+    "category": "chores"
+   }
+  },
+  {
+   "text": "в понедельник в 8:30 лекция по физике до 10",
+   "expect": {
+    "kind": "event",
+    "title": "Физика",
+    "date": "2026-11-02",
+    "start": "2026-11-02 08:30",
+    "end": "2026-11-02 10:00",
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [],
+    "category": "study"
+   }
+  },
+  {
+   "text": "каждую пятницу в 19 футбол с друзьями до 21",
+   "expect": {
+    "kind": "event",
+    "title": "Футбол",
+    "date": "2026-10-30",
+    "start": "2026-10-30 19:00",
+    "end": "2026-10-30 21:00",
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": "FREQ=WEEKLY;BYDAY=FR",
+    "missing": [],
+    "category": "hobby"
+   }
+  },
+  {
+   "text": "сегодня в 18 тренировка два часа",
+   "expect": {
+    "kind": "event",
+    "title": "Тренировка",
+    "date": "2026-10-28",
+    "start": "2026-10-28 18:00",
+    "end": "2026-10-28 20:00",
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [],
+    "category": "hobby"
+   }
+  },
+  {
+   "text": "в субботу в 11 йога час",
+   "expect": {
+    "kind": "event",
+    "title": "Йога",
+    "date": "2026-10-31",
+    "start": "2026-10-31 11:00",
+    "end": "2026-10-31 12:00",
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [],
+    "category": "hobby"
+   }
+  },
+  {
+   "text": "в воскресенье с 14 до 16 футбол",
+   "expect": {
+    "kind": "event",
+    "title": "Футбол",
+    "date": "2026-11-01",
+    "start": "2026-11-01 14:00",
+    "end": "2026-11-01 16:00",
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [],
+    "category": "hobby"
+   }
+  },
+  {
+   "text": "на следующей неделе во вторник в 17 консультация по диплому, час",
+   "expect": {
+    "kind": "event",
+    "title": "Консультация",
+    "date": "2026-11-03",
+    "start": "2026-11-03 17:00",
+    "end": "2026-11-03 18:00",
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [],
+    "category": "study"
+   }
+  },
+  {
+   "text": "на этой неделе в четверг в 19 кино",
+   "expect": {
+    "kind": "event",
+    "title": "Кино",
+    "date": "2026-10-29",
+    "start": "2026-10-29 19:00",
+    "end": null,
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [
+     "time_to"
+    ],
+    "category": "rest"
+   }
+  },
+  {
+   "text": "в среду в 19:00 английский до 20:30",
+   "expect": {
+    "kind": "event",
+    "title": "Английский",
+    "date": "2026-10-28",
+    "start": "2026-10-28 19:00",
+    "end": "2026-10-28 20:30",
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [],
+    "category": "study"
+   }
+  },
+  {
+   "text": "в среду в 9 утра зарядка 20 минут",
+   "expect": {
+    "kind": "event",
+    "title": "Зарядка",
+    "date": "2026-11-04",
+    "start": "2026-11-04 09:00",
+    "end": "2026-11-04 09:20",
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [],
+    "category": "rest"
+   }
+  },
+  {
+   "text": "каждый четверг в 10 семинар по философии до 11:30",
+   "expect": {
+    "kind": "event",
+    "title": "Семинар",
+    "date": "2026-10-29",
+    "start": "2026-10-29 10:00",
+    "end": "2026-10-29 11:30",
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": "FREQ=WEEKLY;BYDAY=TH",
+    "missing": [],
+    "category": "study"
+   }
+  },
+  {
+   "text": "3 ноября в 14:00 собеседование на час",
+   "expect": {
+    "kind": "event",
+    "title": "Собеседование",
+    "date": "2026-11-03",
+    "start": "2026-11-03 14:00",
+    "end": "2026-11-03 15:00",
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [],
+    "category": "work"
+   }
+  },
+  {
+   "text": "31 декабря в 23:00 вечеринка",
+   "expect": {
+    "kind": "event",
+    "title": "Вечеринка",
+    "date": "2026-12-31",
+    "start": "2026-12-31 23:00",
+    "end": null,
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [
+     "time_to"
+    ],
+    "category": "rest"
+   }
+  },
+  {
+   "text": "1 января в 12 обед у бабушки до 15",
+   "expect": {
+    "kind": "event",
+    "title": "Обед",
+    "date": "2027-01-01",
+    "start": "2027-01-01 12:00",
+    "end": "2027-01-01 15:00",
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [],
+    "category": "rest"
+   }
+  },
+  {
+   "text": "завтра в 13:00 обед с мамой на час",
+   "expect": {
+    "kind": "event",
+    "title": "Обед",
+    "date": "2026-10-29",
+    "start": "2026-10-29 13:00",
+    "end": "2026-10-29 14:00",
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [],
+    "category": "rest"
+   }
+  },
+  {
+   "text": "в пятницу в 7 вечера день рождения у Димы",
+   "expect": {
+    "kind": "event",
+    "title": "День рождения",
+    "date": "2026-10-30",
+    "start": "2026-10-30 19:00",
+    "end": null,
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [
+     "time_to"
+    ],
+    "category": "hobby"
+   }
+  },
+  {
+   "text": "сегодня в 20:00 созвон по проекту 30 минут",
+   "expect": {
+    "kind": "event",
+    "title": "Созвон",
+    "date": "2026-10-28",
+    "start": "2026-10-28 20:00",
+    "end": "2026-10-28 20:30",
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [],
+    "category": "work"
+   }
+  },
+  {
+   "text": "в пятницу записан к врачу в 11:15",
+   "expect": {
+    "kind": "event",
+    "title": "Врач",
+    "date": "2026-10-30",
+    "start": "2026-10-30 11:15",
+    "end": null,
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [
+     "time_to"
+    ],
+    "category": "chores"
+   }
+  },
+  {
+   "text": "контрольная по физике в среду на следующей неделе в 8:30",
+   "expect": {
+    "kind": "event",
+    "title": "Контрольная",
+    "date": "2026-11-04",
+    "start": "2026-11-04 08:30",
+    "end": null,
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [
+     "time_to"
+    ],
+    "category": "study"
+   }
+  },
+  {
+   "text": "в этот четверг с 16 до 17 созвон",
+   "expect": {
+    "kind": "event",
+    "title": "Созвон",
+    "date": "2026-10-29",
+    "start": "2026-10-29 16:00",
+    "end": "2026-10-29 17:00",
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [],
+    "category": "work"
+   }
+  },
+  {
+   "text": "защита диплома 20 ноября в 12 дня",
+   "expect": {
+    "kind": "event",
+    "title": "Защита",
+    "date": "2026-11-20",
+    "start": "2026-11-20 12:00",
+    "end": null,
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [
+     "time_to"
+    ],
+    "category": "study"
+   }
+  },
+  {
+   "text": "каждый понедельник в 8 утра планёрка 30 минут",
+   "expect": {
+    "kind": "event",
+    "title": "Планёрка",
+    "date": "2026-11-02",
+    "start": "2026-11-02 08:00",
+    "end": "2026-11-02 08:30",
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": "FREQ=WEEKLY;BYDAY=MO",
+    "missing": [],
+    "category": "work"
+   }
+  },
+  {
+   "text": "послезавтра в 7 вечера зал, час",
+   "expect": {
+    "kind": "event",
+    "title": "Зал",
+    "date": "2026-10-30",
+    "start": "2026-10-30 19:00",
+    "end": "2026-10-30 20:00",
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [],
+    "category": "hobby"
+   }
+  },
+  {
+   "text": "ужин в субботу в 20:00",
+   "expect": {
+    "kind": "event",
+    "title": "Ужин",
+    "date": "2026-10-31",
+    "start": "2026-10-31 20:00",
+    "end": null,
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [
+     "time_to"
+    ],
+    "category": "rest"
+   }
+  },
+  {
+   "text": "экзамен по алгебре 10 ноября в 10 утра",
+   "expect": {
+    "kind": "event",
+    "title": "Экзамен",
+    "date": "2026-11-10",
+    "start": "2026-11-10 10:00",
+    "end": null,
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [
+     "time_to"
+    ],
+    "category": "study"
+   }
+  },
+  {
+   "text": "встреча с Машей в пятницу",
+   "expect": {
+    "kind": "event",
+    "title": "Встреча",
+    "date": "2026-10-30",
+    "start": null,
+    "end": null,
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [
+     "time_from",
+     "time_to"
+    ],
+    "category": "hobby"
+   }
+  },
+  {
+   "text": "кино завтра вечером",
+   "expect": {
+    "kind": "event",
+    "title": "Кино",
+    "date": "2026-10-29",
+    "start": null,
+    "end": null,
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [
+     "time_from",
+     "time_to"
+    ],
+    "category": "rest"
+   }
+  },
+  {
+   "text": "пара по информатике во вторник с 10:10",
+   "expect": {
+    "kind": "event",
+    "title": "Информатика",
+    "date": "2026-11-03",
+    "start": "2026-11-03 10:10",
+    "end": null,
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [
+     "time_to"
+    ],
+    "category": "study"
+   }
+  },
+  {
+   "text": "курсовая 6 часов до пятницы",
+   "expect": {
+    "kind": "task",
+    "title": "Курсовая",
+    "date": null,
+    "start": null,
+    "end": null,
+    "duration_min": 360,
+    "deadline": "2026-10-30",
+    "recurrence": null,
+    "missing": [],
+    "category": "study"
+   }
+  },
+  {
+   "text": "сделать презентацию 3 часа до четверга",
+   "expect": {
+    "kind": "task",
+    "title": "Презентация",
+    "date": null,
+    "start": null,
+    "end": null,
+    "duration_min": 180,
+    "deadline": "2026-10-29",
+    "recurrence": null,
+    "missing": [],
+    "category": "study"
+   }
+  },
+  {
+   "text": "доклад по истории до 5 ноября, 4 часа",
+   "expect": {
+    "kind": "task",
+    "title": "Доклад",
+    "date": null,
+    "start": null,
+    "end": null,
+    "duration_min": 240,
+    "deadline": "2026-11-05",
+    "recurrence": null,
+    "missing": [],
+    "category": "study"
+   }
+  },
+  {
+   "text": "разобрать почту, 30 минут, сегодня",
+   "expect": {
+    "kind": "task",
+    "title": "Почта",
+    "date": null,
+    "start": null,
+    "end": null,
+    "duration_min": 30,
+    "deadline": "2026-10-28",
+    "recurrence": null,
+    "missing": [],
+    "category": "chores"
+   }
+  },
+  {
+   "text": "отчёт по практике 8 часов до понедельника",
+   "expect": {
+    "kind": "task",
+    "title": "Отчёт",
+    "date": null,
+    "start": null,
+    "end": null,
+    "duration_min": 480,
+    "deadline": "2026-11-02",
+    "recurrence": null,
+    "missing": [],
+    "category": "study"
+   }
+  },
+  {
+   "text": "подготовиться к зачёту 10 часов до 12 ноября",
+   "expect": {
+    "kind": "task",
+    "title": "Зачёт",
+    "date": null,
+    "start": null,
+    "end": null,
+    "duration_min": 600,
+    "deadline": "2026-11-12",
+    "recurrence": null,
+    "missing": [],
+    "category": "study"
+   }
+  },
+  {
+   "text": "до воскресенья написать эссе, 3 часа",
+   "expect": {
+    "kind": "task",
+    "title": "Эссе",
+    "date": null,
+    "start": null,
+    "end": null,
+    "duration_min": 180,
+    "deadline": "2026-11-01",
+    "recurrence": null,
+    "missing": [],
+    "category": "study"
+   }
+  },
+  {
+   "text": "задание по базам данных, 2 часа, до завтра",
+   "expect": {
+    "kind": "task",
+    "title": "Задание",
+    "date": null,
+    "start": null,
+    "end": null,
+    "duration_min": 120,
+    "deadline": "2026-10-29",
+    "recurrence": null,
+    "missing": [],
+    "category": "study"
+   }
+  },
+  {
+   "text": "доклад до пятницы",
+   "expect": {
+    "kind": "task",
+    "title": "Доклад",
+    "date": null,
+    "start": null,
+    "end": null,
+    "duration_min": null,
+    "deadline": "2026-10-30",
+    "recurrence": null,
+    "missing": [
+     "duration_min"
+    ],
+    "category": "study"
+   }
+  },
+  {
+   "text": "реферат 5 часов",
+   "expect": {
+    "kind": "task",
+    "title": "Реферат",
+    "date": null,
+    "start": null,
+    "end": null,
+    "duration_min": 300,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [
+     "deadline"
+    ],
+    "category": "study"
+   }
+  },
+  {
+   "text": "сделать лабу",
+   "expect": {
+    "kind": "task",
+    "title": "Лаба",
+    "date": null,
+    "start": null,
+    "end": null,
+    "duration_min": null,
+    "deadline": null,
+    "recurrence": null,
+    "missing": [
+     "duration_min",
+     "deadline"
+    ],
+    "category": "study"
+   }
+  }
+ ]
+}

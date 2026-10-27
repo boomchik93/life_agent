@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"lifeagent/internal/calendar"
+	"lifeagent/internal/llm"
 	"lifeagent/internal/load"
 	"lifeagent/internal/store"
 )
@@ -28,6 +29,9 @@ type Server struct {
 	cal    Collector
 	loc    *time.Location
 	now    func() time.Time
+
+	parser  PhraseParser
+	llmInfo *LLMInfo
 }
 
 type Options struct {
@@ -37,6 +41,8 @@ type Options struct {
 	Calendar Collector // nil: /v1/week reports calendars as not configured
 	Location *time.Location
 	Now      func() time.Time // defaults to time.Now
+	Parser   PhraseParser     // nil: /v1/parse reports the LLM as not configured
+	LLM      *LLMInfo         // nil: /v1/llm reports the LLM as not configured
 	// RatePerSec and Burst limit requests per client on /v1/*.
 	RatePerSec float64
 	Burst      int
@@ -51,6 +57,9 @@ func New(o Options) http.Handler {
 		cal:    o.Calendar,
 		loc:    o.Location,
 		now:    o.Now,
+
+		parser:  o.Parser,
+		llmInfo: o.LLM,
 	}
 	if s.loc == nil {
 		s.loc = time.UTC
@@ -67,6 +76,8 @@ func New(o Options) http.Handler {
 	v1.HandleFunc("PUT /v1/settings", s.putSettings)
 	v1.HandleFunc("GET /v1/week", s.getWeek)
 	v1.HandleFunc("POST /v1/checkin", s.postCheckin)
+	v1.HandleFunc("POST /v1/parse", s.postParse)
+	v1.HandleFunc("GET /v1/llm", s.getLLM)
 	mux.Handle("/v1/", s.rateLimit(s.auth(v1)))
 
 	return mux
@@ -127,6 +138,16 @@ func validateSetting(key string, raw json.RawMessage) error {
 		_, err = load.ParseThresholds(raw)
 	case settingCalendarCategories:
 		_, err = load.ParseCalendarCategories(raw)
+	case llm.SettingKey:
+		over, perr := llm.ParseOverrides(raw)
+		if perr != nil {
+			return perr
+		}
+		// The overrides must also make a valid chain on top of the defaults.
+		var def llm.Config
+		if def, err = llm.DefaultConfig(); err == nil {
+			_, err = def.Merge(over)
+		}
 	}
 	return err
 }

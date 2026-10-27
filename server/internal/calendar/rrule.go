@@ -171,3 +171,10 @@ func sortInts(a []int) {
 		}
 	}
 }
+
+// ValidateRRULE checks the syntax of an RFC 5545 rule against the subset the
+// agent can read back and write: FREQ, INTERVAL, COUNT, UNTIL, BYDAY (weekly only).
+func ValidateRRULE(s string, loc *time.Location) error {
+	_, err := parseRule(s, loc)
+	return err
+}
