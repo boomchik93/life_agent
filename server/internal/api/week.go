@@ -52,7 +52,19 @@ func (s *Server) getWeek(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, weekResponse{From: from, To: to, Events: events, Warnings: warnings, Risks: risks})
+	// Every event carries its category, the one the load rules use, so the
+	// app can tell study from rest without knowing the calendar mapping.
+	_, cats, err := s.loadSettings()
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	view := make([]calendar.Event, len(events))
+	for i, e := range events {
+		e.Category = string(eventCategory(cats, e))
+		view[i] = e
+	}
+	writeJSON(w, http.StatusOK, weekResponse{From: from, To: to, Events: view, Warnings: warnings, Risks: risks})
 }
 
 func (s *Server) assess(events []calendar.Event, from, to time.Time) (load.Assessment, error) {

@@ -9,6 +9,8 @@ import 'card.dart';
 import 'health.dart';
 import 'llm_info.dart';
 import 'models.dart';
+import 'sources.dart';
+import 'usage.dart';
 import 'plan.dart';
 import 'slot.dart';
 
@@ -62,6 +64,29 @@ abstract class LifeApi {
 
   Future<AdviceSettings> adviceSettings();
   Future<void> saveAdviceSettings(AdviceSettings s);
+
+  /// Categories of app names the phone could not place itself. [llm] false
+  /// keeps the names away from the model for this call.
+  Future<Map<String, NameCategory>> categorize(List<String> names, {bool llm = true});
+
+  /// Sends the minutes per category of one day from the phone or the Mac.
+  Future<void> sendActivityDay(UsageDay day, {required String source});
+
+  Future<List<SourceInfo>> sources();
+  Future<void> setSourceEnabled(String source, bool enabled);
+
+  /// Deletes the data of one source on the server. Returns the rows removed.
+  Future<int> deleteSourceData(String source);
+
+  /// Everything the server stores about the user, as JSON text.
+  Future<String> exportData();
+
+  /// Deletes all data on the server (the settings stay).
+  Future<void> deleteAllData();
+
+  /// Whether names of unknown apps may go to the language model.
+  Future<bool> categorizeLlm();
+  Future<void> saveCategorizeLlm(bool on);
 
   /// Sends the summary of one day from Health Connect.
   Future<void> sendHealthDay(HealthDay day);
@@ -293,6 +318,77 @@ class HttpLifeApi implements LifeApi {
   Future<void> saveAdviceSettings(AdviceSettings s) async {
     await _send('PUT', _uri('/v1/settings'), body: {
       'advice': {'include_private': s.includePrivate},
+    });
+  }
+
+  @override
+  Future<Map<String, NameCategory>> categorize(List<String> names, {bool llm = true}) async {
+    final out = <String, NameCategory>{};
+    // The server takes up to 100 names in one request.
+    for (var i = 0; i < names.length; i += 100) {
+      final chunk = names.sublist(i, i + 100 > names.length ? names.length : i + 100);
+      final j = await _send('POST', _uri('/v1/categorize'), body: {'names': chunk, 'llm': llm}, timeout: _parseTimeout);
+      try {
+        for (final e in (j['categories'] as Map<String, dynamic>).entries) {
+          final v = e.value as Map<String, dynamic>;
+          out[e.key] = NameCategory(
+            category: v['category'] as String? ?? 'unknown',
+            confidence: (v['confidence'] as num?)?.toDouble() ?? 0,
+            resolved: v['resolved'] as bool? ?? false,
+          );
+        }
+      } catch (_) {
+        throw const ApiException(ApiProblem.server, 'Сервер вернул неожиданные данные. Обнови приложение.');
+      }
+    }
+    return out;
+  }
+
+  @override
+  Future<void> sendActivityDay(UsageDay day, {required String source}) async {
+    await _send('POST', _uri('/v1/activity/daily'), body: day.toJson(source));
+  }
+
+  @override
+  Future<List<SourceInfo>> sources() async {
+    final j = await _send('GET', _uri('/v1/sources'));
+    try {
+      return [for (final s in (j['sources'] as List)) SourceInfo.fromJson(s as Map<String, dynamic>)];
+    } catch (_) {
+      throw const ApiException(ApiProblem.server, 'Сервер вернул неожиданные данные. Обнови приложение.');
+    }
+  }
+
+  @override
+  Future<void> setSourceEnabled(String source, bool enabled) async {
+    await _send('PUT', _uri('/v1/sources/$source'), body: {'enabled': enabled});
+  }
+
+  @override
+  Future<int> deleteSourceData(String source) async {
+    final j = await _send('DELETE', _uri('/v1/activity', {'source': source}));
+    return (j['deleted'] as num?)?.toInt() ?? 0;
+  }
+
+  @override
+  Future<String> exportData() async => jsonEncode(await _send('GET', _uri('/v1/export'), timeout: _parseTimeout));
+
+  @override
+  Future<void> deleteAllData() async {
+    await _send('DELETE', _uri('/v1/data'), body: {'confirm': 'delete-all-data'});
+  }
+
+  @override
+  Future<bool> categorizeLlm() async {
+    final j = await _send('GET', _uri('/v1/settings'));
+    final c = j['categorize'];
+    return !(c is Map && c['llm'] == false);
+  }
+
+  @override
+  Future<void> saveCategorizeLlm(bool on) async {
+    await _send('PUT', _uri('/v1/settings'), body: {
+      'categorize': {'llm': on},
     });
   }
 

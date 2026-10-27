@@ -100,9 +100,13 @@ class CalEvent {
     required this.start,
     required this.end,
     required this.allDay,
+    this.category = '',
   });
 
   final String id, source, calendar, title;
+
+  /// The category the load rules use for this event ("study", "hobby", ...).
+  final String category;
   final Wall start, end; // end is exclusive
   final bool allDay;
 
@@ -114,6 +118,7 @@ class CalEvent {
         start: Wall.parse(j['start'] as String),
         end: Wall.parse(j['end'] as String),
         allDay: j['all_day'] as bool,
+        category: j['category'] as String? ?? '',
       );
 
   /// Whether the event touches the given day.

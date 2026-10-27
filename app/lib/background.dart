@@ -4,6 +4,7 @@ import 'package:workmanager/workmanager.dart';
 import 'api.dart';
 import 'health.dart';
 import 'notifications.dart';
+import 'usage.dart';
 import 'settings.dart';
 
 const healthTaskName = 'health-sync';
@@ -18,7 +19,7 @@ void callbackDispatcher() {
     final storage = PlatformStorage();
     final api = apiFor(await storage.loadConnection());
     if (api == null) return true;
-    return runBackgroundJobs(api, storage, HealthConnectSource(), LocalNotifier());
+    return runBackgroundJobs(api, storage, HealthConnectSource(), LocalNotifier(), usage: PluginUsageSource());
   });
 }
 
@@ -26,7 +27,7 @@ void callbackDispatcher() {
 /// the server prepared. One job failing does not stop the other. Returns false
 /// when a retry makes sense (no network).
 Future<bool> runBackgroundJobs(LifeApi api, AppStorage storage, HealthSource health, Notifier notifier,
-    {DateTime Function()? now}) async {
+    {UsageSource? usage, DateTime Function()? now}) async {
   var retry = false;
   final clock = now ?? DateTime.now;
 
@@ -39,6 +40,16 @@ Future<bool> runBackgroundJobs(LifeApi api, AppStorage storage, HealthSource hea
       retry |= e.problem == ApiProblem.network;
     } catch (_) {
       await storage.saveHealthSync(clock().toIso8601String(), 'Ошибка чтения данных здоровья.');
+    }
+  }
+
+  if (usage != null && await storage.usageSyncEnabled()) {
+    try {
+      await UsageSync(api: api, source: usage, now: now).run();
+    } on ApiException catch (e) {
+      retry |= e.problem == ApiProblem.network;
+    } catch (_) {
+      // The sums of the day are sent again at the next round.
     }
   }
 
@@ -92,7 +103,9 @@ class WorkmanagerScheduler implements SyncScheduler {
 
 /// Starts the periodic task while some job needs it, stops it when none does.
 Future<void> applyBackground(AppStorage storage, SyncScheduler scheduler) async {
-  final needed = await storage.healthSyncEnabled() || await storage.adviceNotifyEnabled();
+  final needed = await storage.healthSyncEnabled() ||
+      await storage.adviceNotifyEnabled() ||
+      await storage.usageSyncEnabled();
   if (needed) {
     await scheduler.start();
   } else {

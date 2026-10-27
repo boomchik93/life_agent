@@ -160,6 +160,7 @@ func serve(cfg config.Config, st *store.Store, logger *slog.Logger) error {
 	if client != nil {
 		opts.Parser = &parse.Parser{LLM: client, Loc: cfg.Location, Now: time.Now}
 		opts.Advisor = &advice.Advisor{LLM: client}
+		opts.Caller = client
 		opts.LLM = info
 	}
 	app := api.NewServer(opts)

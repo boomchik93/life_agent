@@ -4,18 +4,21 @@ import '../api.dart';
 import '../background.dart';
 import '../controller.dart';
 import '../health.dart';
+import '../usage.dart';
 import '../settings.dart';
 import 'health_screen.dart';
+import 'sources_screen.dart';
 import 'models_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key, required this.controller, this.healthSource, this.scheduler});
+  const SettingsScreen({super.key, required this.controller, this.healthSource, this.scheduler, this.usage});
 
   final AppController controller;
 
   /// Replaceable in tests; the phone uses Health Connect and WorkManager.
   final HealthSource? healthSource;
   final SyncScheduler? scheduler;
+  final UsageSource? usage;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -139,6 +142,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
               enabled: widget.controller.api != null,
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => ModelsScreen(api: widget.controller.api!)),
+              ),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.insights),
+              title: const Text('Источники'),
+              subtitle: Text(widget.controller.api == null
+                  ? 'Сначала сохрани адрес и токен'
+                  : 'Время в приложениях, Steam, GitHub, погода; экспорт и удаление'),
+              trailing: const Icon(Icons.chevron_right),
+              enabled: widget.controller.api != null,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => SourcesScreen(
+                    api: widget.controller.api!,
+                    storage: widget.controller.storage,
+                    usage: widget.usage ?? PluginUsageSource(),
+                    scheduler: widget.scheduler ?? WorkmanagerScheduler(),
+                  ),
+                ),
               ),
             ),
             ListTile(

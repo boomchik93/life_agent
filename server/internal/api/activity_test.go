@@ -150,44 +150,16 @@ func TestNoTitlesOrURLsInTheDatabaseOrLogs(t *testing.T) {
 		t.Fatalf("%d %s", code, body)
 	}
 
-	var all strings.Builder
-	rows, err := st.DB.Query(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var tables []string
-	for rows.Next() {
-		var n string
-		rows.Scan(&n)
-		tables = append(tables, n)
-	}
-	rows.Close()
-	for _, tbl := range tables {
-		r, err := st.DB.Query(`SELECT * FROM ` + tbl)
-		if err != nil {
-			t.Fatal(err)
-		}
-		cols, _ := r.Columns()
-		for r.Next() {
-			vals := make([]any, len(cols))
-			ptrs := make([]any, len(cols))
-			for i := range vals {
-				ptrs[i] = &vals[i]
-			}
-			r.Scan(ptrs...)
-			fmt.Fprintln(&all, vals...)
-		}
-		r.Close()
-	}
+	all := dumpDB(t, st)
 	for _, s := range secrets {
-		if strings.Contains(all.String(), s) {
+		if strings.Contains(all, s) {
 			t.Errorf("%q reached the database", s)
 		}
 		if strings.Contains(log.String(), s) {
 			t.Errorf("%q reached the log", s)
 		}
 	}
-	if all.Len() == 0 {
+	if len(all) == 0 {
 		t.Fatal("the scan saw no data: the test checks nothing")
 	}
 }
@@ -296,4 +268,39 @@ func TestExportAndDeleteAll(t *testing.T) {
 	if len(ex.Tables["settings"]) == 0 {
 		t.Error("the settings are configuration and must stay")
 	}
+}
+
+// dumpDB returns every value stored in the database as text.
+func dumpDB(t *testing.T, st *store.Store) string {
+	t.Helper()
+	var all strings.Builder
+	rows, err := st.DB.Query(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tables []string
+	for rows.Next() {
+		var n string
+		rows.Scan(&n)
+		tables = append(tables, n)
+	}
+	rows.Close()
+	for _, tbl := range tables {
+		r, err := st.DB.Query(`SELECT * FROM ` + tbl)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cols, _ := r.Columns()
+		for r.Next() {
+			vals := make([]any, len(cols))
+			ptrs := make([]any, len(cols))
+			for i := range vals {
+				ptrs[i] = &vals[i]
+			}
+			r.Scan(ptrs...)
+			fmt.Fprintln(&all, vals...)
+		}
+		r.Close()
+	}
+	return all.String()
 }

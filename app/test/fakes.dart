@@ -7,6 +7,8 @@ import 'package:life_agent/models.dart';
 import 'package:life_agent/plan.dart';
 import 'package:life_agent/settings.dart';
 import 'package:life_agent/slot.dart';
+import 'package:life_agent/sources.dart';
+import 'package:life_agent/usage.dart';
 
 class MemoryStorage implements AppStorage {
   MemoryStorage({this.connection = const ConnectionSettings(baseUrl: '', token: ''), this.checkinDate});
@@ -15,6 +17,7 @@ class MemoryStorage implements AppStorage {
   String? checkinDate;
   bool healthOn = false;
   bool adviceOn = false;
+  bool usageOn = false;
   String? healthAt, healthNote;
 
   @override
@@ -25,6 +28,10 @@ class MemoryStorage implements AppStorage {
   Future<String?> lastCheckinDate() async => checkinDate;
   @override
   Future<void> saveCheckinDate(String ymd) async => checkinDate = ymd;
+  @override
+  Future<bool> usageSyncEnabled() async => usageOn;
+  @override
+  Future<void> saveUsageSyncEnabled(bool on) async => usageOn = on;
   @override
   Future<bool> adviceNotifyEnabled() async => adviceOn;
   @override
@@ -163,6 +170,76 @@ class FakeApi implements LifeApi {
       recentCalls: llm.recentCalls,
       warnings: llm.warnings,
     );
+  }
+
+  // Activity sources
+  final categorizeCalls = <({List<String> names, bool llm})>[];
+  Map<String, NameCategory> categories = {};
+  Object? categorizeError;
+  final activitySent = <({UsageDay day, String source})>[];
+  Object? activityError;
+  List<SourceInfo> sourceList = [
+    for (final s in ['android_usage', 'mac_activitywatch', 'steam', 'github', 'leetcode', 'weather'])
+      SourceInfo(source: s, enabled: true),
+  ];
+  Object? sourcesError;
+  final deletedSources = <String>[];
+  bool allDeleted = false;
+  String exportText = '{"tables":{}}';
+  bool categorizeLlmOn = true;
+  final categorizeLlmSaved = <bool>[];
+
+  @override
+  Future<Map<String, NameCategory>> categorize(List<String> names, {bool llm = true}) async {
+    categorizeCalls.add((names: names, llm: llm));
+    if (categorizeError != null) throw categorizeError!;
+    return {
+      for (final n in names)
+        n: categories[n] ?? const NameCategory(category: 'unknown', confidence: 0, resolved: false),
+    };
+  }
+
+  @override
+  Future<void> sendActivityDay(UsageDay day, {required String source}) async {
+    if (activityError != null) throw activityError!;
+    activitySent.add((day: day, source: source));
+  }
+
+  @override
+  Future<List<SourceInfo>> sources() async {
+    if (sourcesError != null) throw sourcesError!;
+    return sourceList;
+  }
+
+  @override
+  Future<void> setSourceEnabled(String source, bool enabled) async {
+    sourceList = [
+      for (final s in sourceList)
+        s.source == source
+            ? SourceInfo(source: s.source, enabled: enabled, lastSync: s.lastSync, lastError: s.lastError)
+            : s,
+    ];
+  }
+
+  @override
+  Future<int> deleteSourceData(String source) async {
+    deletedSources.add(source);
+    return 7;
+  }
+
+  @override
+  Future<String> exportData() async => exportText;
+
+  @override
+  Future<void> deleteAllData() async => allDeleted = true;
+
+  @override
+  Future<bool> categorizeLlm() async => categorizeLlmOn;
+
+  @override
+  Future<void> saveCategorizeLlm(bool on) async {
+    categorizeLlmSaved.add(on);
+    categorizeLlmOn = on;
   }
 
   Advice adviceResult = sampleAdvice();

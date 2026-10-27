@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"lifeagent/internal/advice"
+	"lifeagent/internal/appcat"
 	"lifeagent/internal/calendar"
 	"lifeagent/internal/llm"
 	"lifeagent/internal/load"
@@ -41,6 +42,7 @@ type Server struct {
 	parser  PhraseParser
 	llmInfo *LLMInfo
 	advisor AdviceGenerator
+	caller  appcat.Caller
 }
 
 type Options struct {
@@ -54,6 +56,7 @@ type Options struct {
 	Parser   PhraseParser     // nil: /v1/parse reports the LLM as not configured
 	LLM      *LLMInfo         // nil: /v1/llm reports the LLM as not configured
 	Advisor  AdviceGenerator  // nil: /v1/advice reports the LLM as not configured
+	Caller   appcat.Caller    // nil: /v1/categorize uses only the cache and the dictionary
 	// RatePerSec and Burst limit requests per client on /v1/*.
 	RatePerSec float64
 	Burst      int
@@ -76,6 +79,7 @@ func NewServer(o Options) *Server {
 		parser:  o.Parser,
 		llmInfo: o.LLM,
 		advisor: o.Advisor,
+		caller:  o.Caller,
 	}
 	if s.loc == nil {
 		s.loc = time.UTC
@@ -114,6 +118,7 @@ func (s *Server) Handler() http.Handler {
 	v1.HandleFunc("PUT /v1/sources/{source}", s.putSource)
 	v1.HandleFunc("GET /v1/export", s.getExport)
 	v1.HandleFunc("DELETE /v1/data", s.deleteData)
+	v1.HandleFunc("POST /v1/categorize", s.postCategorize)
 	v1.HandleFunc("POST /v1/advice", s.postAdvice)
 	v1.HandleFunc("GET /v1/advice", s.getAdvice)
 	v1.HandleFunc("GET /v1/advice/pending", s.getAdvicePending)
@@ -177,6 +182,8 @@ func validateSetting(key string, raw json.RawMessage) error {
 		_, err = load.ParseThresholds(raw)
 	case settingCalendarCategories:
 		_, err = load.ParseCalendarCategories(raw)
+	case settingCategorize:
+		_, err = parseCategorizeSettings(raw)
 	case settingAdvice:
 		_, err = advice.ParseSettings(raw)
 	case settingPlanParams:
