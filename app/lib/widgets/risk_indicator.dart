@@ -182,9 +182,20 @@ class RiskChange extends StatelessWidget {
           Expanded(
             child: Text(title, style: worsened ? const TextStyle(fontWeight: FontWeight.bold) : null),
           ),
-          state(before),
-          const Padding(padding: EdgeInsets.symmetric(horizontal: 6), child: Icon(Icons.arrow_forward, size: 16)),
-          state(after),
+          // Two long labels ("Нет данных → Нет данных") do not fit a narrow
+          // phone next to the title: the pair shrinks a little instead of overflowing.
+          Flexible(
+            flex: 2,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                state(before),
+                const Padding(padding: EdgeInsets.symmetric(horizontal: 6), child: Icon(Icons.arrow_forward, size: 16)),
+                state(after),
+              ]),
+            ),
+          ),
         ]),
       ),
     );

@@ -12,6 +12,7 @@ import 'models.dart';
 import 'sources.dart';
 import 'usage.dart';
 import 'plan.dart';
+import 'review.dart';
 import 'slot.dart';
 
 enum ApiProblem { network, unauthorized, notConfigured, server, dailyLimit, llm }
@@ -98,8 +99,19 @@ abstract class LifeApi {
   /// Deletes every health summary on the server. Returns how many there were.
   Future<int> deleteHealth();
 
-  /// Builds the week plan from the open tasks. Nothing is written.
-  Future<PlanData> planWeek();
+  /// Builds the week plan from the open tasks, and with [goals] also from the
+  /// minutes the goals are still missing. Nothing is written.
+  Future<PlanData> planWeek({bool goals = false});
+
+  /// The four goals with their norms and suggestions.
+  Future<Goals> goals();
+
+  /// Answers a suggestion ("confirm", "keep"), sets a norm ("set", with
+  /// [normMin]) or removes it ("clear").
+  Future<Goals> answerGoal(String goal, String action, {int? normMin});
+
+  /// The weekly review; the current week unless [start] is given.
+  Future<Review> reviewWeek({Wall? start});
 
   /// Writes the plan the user confirmed. The same [key] never writes twice.
   Future<PlanApplied> applyPlan(PlanData plan, {required String key});
@@ -422,10 +434,40 @@ class HttpLifeApi implements LifeApi {
   }
 
   @override
-  Future<PlanData> planWeek() async {
-    final j = await _send('POST', _uri('/v1/plan/week'), body: <String, dynamic>{});
+  Future<Goals> goals() async {
+    final j = await _send('GET', _uri('/v1/goals'));
     try {
-      return PlanData.fromJson(j);
+      return Goals.fromJson(j);
+    } catch (_) {
+      throw const ApiException(ApiProblem.server, 'Сервер вернул неожиданные данные. Обнови приложение.');
+    }
+  }
+
+  @override
+  Future<Goals> answerGoal(String goal, String action, {int? normMin}) async {
+    final j = await _send('PUT', _uri('/v1/goals'), body: {'goal': goal, 'action': action, 'norm_min': ?normMin});
+    try {
+      return Goals.fromJson(j);
+    } catch (_) {
+      throw const ApiException(ApiProblem.server, 'Сервер вернул неожиданные данные. Обнови приложение.');
+    }
+  }
+
+  @override
+  Future<Review> reviewWeek({Wall? start}) async {
+    final j = await _send('GET', _uri('/v1/review/week', start == null ? null : {'start': start.ymd}));
+    try {
+      return Review.fromJson(j);
+    } catch (_) {
+      throw const ApiException(ApiProblem.server, 'Сервер вернул неожиданные данные. Обнови приложение.');
+    }
+  }
+
+  @override
+  Future<PlanData> planWeek({bool goals = false}) async {
+    final j = await _send('POST', _uri('/v1/plan/week'), body: <String, dynamic>{if (goals) 'goals': true});
+    try {
+      return PlanData.fromJson(j).withGoals(goals);
     } catch (_) {
       throw const ApiException(ApiProblem.server, 'Сервер вернул неожиданные данные. Обнови приложение.');
     }

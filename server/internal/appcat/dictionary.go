@@ -47,9 +47,6 @@ var dictionary = map[string]string{
 	"ru.yandex.music": "leisure", "music.yandex.ru": "leisure", "com.google.android.apps.youtube.music": "leisure",
 	"epic games launcher": "leisure", "battle.net": "leisure", "dota 2": "leisure", "counter-strike 2": "leisure",
 	"pikabu.ru": "leisure", "9gag.com": "leisure", "com.mojang.minecraftpe": "leisure",
-	// sleep
-	"com.sec.android.app.clockpackage": "sleep", "com.google.android.deskclock": "sleep",
-	"com.urbandroid.sleep": "sleep", "com.northcube.sleepcycle": "sleep",
 }
 
 // Lookup finds a name in the dictionary: exactly, or as a sub-domain of a

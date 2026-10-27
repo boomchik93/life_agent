@@ -60,7 +60,14 @@ type Task struct {
 	// Deadline is the last day the work may happen on (local midnight).
 	Deadline time.Time
 	Priority int // higher goes first
+	// Prefer lists periods the chunks should go to if they can (dry, light
+	// hours for sport). It is only a wish: when nothing fits there, any free
+	// window is used. The rules apply to every window alike.
+	Prefer []Window
 }
+
+// Window is a period of time.
+type Window struct{ Start, End time.Time }
 
 // Busy is a timed calendar event; all-day events do not block the planner.
 type Busy struct {
@@ -296,7 +303,7 @@ func (pl *planner) place(t Task, end time.Time) int {
 	remaining := t.RemainingMin
 	for remaining > 0 {
 		placed := false
-		for _, w := range pl.windows(t, end) {
+		for _, w := range pl.ordered(t, pl.windows(t, end)) {
 			size := pl.chunkSize(t, w, remaining)
 			if size <= 0 {
 				continue
@@ -354,6 +361,39 @@ func (pl *planner) windows(t Task, end time.Time) []span {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].s.Before(out[j].s) })
 	return out
+}
+
+// ordered puts the preferred parts of the free windows first, then all the
+// windows. Without a preference it returns the windows as they are.
+func (pl *planner) ordered(t Task, ws []span) []span {
+	if len(t.Prefer) == 0 {
+		return ws
+	}
+	var pref []span
+	for _, w := range ws {
+		for _, p := range t.Prefer {
+			s, e := ceil15(maxT(w.s, p.Start)), floor15(minT(w.e, p.End))
+			if e.After(s) {
+				pref = append(pref, span{s, e})
+			}
+		}
+	}
+	sort.SliceStable(pref, func(i, j int) bool { return pref[i].s.Before(pref[j].s) })
+	return append(pref, ws...)
+}
+
+func maxT(a, b time.Time) time.Time {
+	if a.After(b) {
+		return a
+	}
+	return b
+}
+
+func minT(a, b time.Time) time.Time {
+	if a.Before(b) {
+		return a
+	}
+	return b
 }
 
 // chunkSize is the length of the next chunk at the start of window w, or 0

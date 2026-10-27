@@ -5,6 +5,7 @@ import 'package:life_agent/health.dart';
 import 'package:life_agent/llm_info.dart';
 import 'package:life_agent/models.dart';
 import 'package:life_agent/plan.dart';
+import 'package:life_agent/review.dart';
 import 'package:life_agent/settings.dart';
 import 'package:life_agent/slot.dart';
 import 'package:life_agent/sources.dart';
@@ -320,11 +321,54 @@ class FakeApi implements LifeApi {
   int plansBuilt = 0;
   final applied = <({PlanData plan, String key})>[];
 
+  bool lastPlanWithGoals = false;
+  Goals goalsState = sampleGoals();
+  Object? goalsError;
+  final goalAnswers = <({String goal, String action, int? normMin})>[];
+  Review reviewResult = sampleReview();
+  Object? reviewError;
+  final reviewStarts = <String?>[];
+
   @override
-  Future<PlanData> planWeek() async {
+  Future<PlanData> planWeek({bool goals = false}) async {
     plansBuilt++;
+    lastPlanWithGoals = goals;
     if (planError != null) throw planError!;
-    return planResult;
+    return planResult.withGoals(goals);
+  }
+
+  @override
+  Future<Goals> goals() async {
+    if (goalsError != null) throw goalsError!;
+    return goalsState;
+  }
+
+  @override
+  Future<Goals> answerGoal(String goal, String action, {int? normMin}) async {
+    goalAnswers.add((goal: goal, action: action, normMin: normMin));
+    if (goalsError != null) throw goalsError!;
+    final list = <GoalInfo>[];
+    for (final g in goalsState.goals) {
+      if (g.goal != goal) {
+        list.add(g);
+        continue;
+      }
+      list.add(switch (action) {
+        'confirm' => GoalInfo(goal: g.goal, title: g.title, normMin: g.suggestedMin),
+        'keep' => GoalInfo(goal: g.goal, title: g.title, normMin: g.normMin),
+        'set' => GoalInfo(goal: g.goal, title: g.title, normMin: normMin),
+        _ => GoalInfo(goal: g.goal, title: g.title),
+      });
+    }
+    goalsState = Goals(goals: list, dataDays: goalsState.dataDays, suggestAfterDays: goalsState.suggestAfterDays);
+    return goalsState;
+  }
+
+  @override
+  Future<Review> reviewWeek({Wall? start}) async {
+    reviewStarts.add(start?.ymd);
+    if (reviewError != null) throw reviewError!;
+    return reviewResult;
   }
 
   @override
@@ -424,3 +468,42 @@ PlanData samplePlan({
 
 Advice sampleAdvice({int id = 1, String text = 'Сдвинь сдачу на среду. Ляг до полуночи.', String source = 'user', String reason = 'asked,overload'}) =>
     Advice(id: id, at: const Wall(2026, 10, 28, 12), text: text, source: source, reasons: reason.split(','));
+
+Goals sampleGoals({Map<String, int?> norms = const {}, Map<String, int> suggested = const {}, int dataDays = 20}) => Goals(
+      goals: [
+        for (final e in {'study': 'Учёба', 'career': 'Карьера', 'sport': 'Спорт', 'work': 'Работа'}.entries)
+          GoalInfo(goal: e.key, title: e.value, normMin: norms[e.key], suggestedMin: suggested[e.key]),
+      ],
+      dataDays: dataDays,
+      suggestAfterDays: 14,
+    );
+
+Review sampleReview({
+  List<ReviewGoal>? goals,
+  List<ReviewGap> gaps = const [],
+  List<String> warnings = const [],
+  int unknownPercent = 6,
+}) =>
+    Review(
+      weekStart: const Wall(2026, 10, 26),
+      weekEnd: const Wall(2026, 11, 1),
+      goals: goals ??
+          const [
+            ReviewGoal(goal: 'study', title: 'Учёба', factMin: 300, normMin: 600, percent: 50),
+            ReviewGoal(goal: 'career', title: 'Карьера', factMin: 90),
+            ReviewGoal(goal: 'sport', title: 'Спорт', factMin: 75, normMin: 180, percent: 42),
+            ReviewGoal(goal: 'work', title: 'Работа', factMin: 0),
+          ],
+      leisureMin: 300,
+      socialMin: 60,
+      sleepMin: 810,
+      sleepDays: 2,
+      unknownPercent: unknownPercent,
+      nightMin: 35,
+      contributions: 9,
+      gaps: gaps,
+      balanceMin: 42,
+      balanceSpread: 8,
+      warnings: warnings,
+      text: const ['Учёба: 5 ч из 10 ч (50%).'],
+    );

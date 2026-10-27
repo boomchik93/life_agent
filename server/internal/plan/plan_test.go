@@ -298,3 +298,34 @@ func TestRandomInputsAlwaysValid(t *testing.T) {
 		}
 	}
 }
+
+func TestPreferredWindowsGoFirstButAreOnlyAWish(t *testing.T) {
+	in := week()
+	sport := task(1, load.Hobby, 60, 30)
+	// Dry and light on Wednesday 28 only, 14:00-16:00.
+	sport.Prefer = []Window{{at(28, 14, 0), at(28, 16, 0)}}
+	in.Tasks = []Task{sport}
+	r := Build(in)
+	mustValid(t, in, r)
+	if len(r.Placed) != 1 || !r.Placed[0].Start.Equal(at(28, 14, 0)) {
+		t.Fatalf("the preferred window is later but wins: %+v", r.Placed)
+	}
+
+	// Busy there: the wish is dropped, not the task.
+	in.Busy = []Busy{{Start: at(28, 13, 0), End: at(28, 17, 0), Category: load.Other}}
+	r = Build(in)
+	mustValid(t, in, r)
+	if len(r.Placed) != 1 || !r.Placed[0].Start.Equal(at(26, 8, 0)) || len(r.Unplaced) != 0 {
+		t.Fatalf("fallback to the earliest window: %+v", r.Placed)
+	}
+
+	// A preferred window that is too short for a chunk is no help.
+	in.Busy = nil
+	sport.Prefer = []Window{{at(28, 14, 0), at(28, 14, 20)}}
+	in.Tasks = []Task{sport}
+	r = Build(in)
+	mustValid(t, in, r)
+	if !r.Placed[0].Start.Equal(at(26, 8, 0)) {
+		t.Errorf("a 20-minute window must not take a 60-minute task: %+v", r.Placed)
+	}
+}

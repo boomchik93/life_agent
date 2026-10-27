@@ -18,9 +18,12 @@ List<Risk> _riskList(Risks r) => [r.sleep, r.overload, r.noRest, r.state];
 /// Builds the week plan, shows it and writes it to the calendar after the
 /// user confirms. Pops `true` once the plan is written.
 class PlanScreen extends StatefulWidget {
-  const PlanScreen({super.key, required this.api});
+  const PlanScreen({super.key, required this.api, this.goals = false});
 
   final LifeApi api;
+
+  /// Plan the minutes the weekly goals are still missing as well.
+  final bool goals;
 
   @override
   State<PlanScreen> createState() => _PlanScreenState();
@@ -41,7 +44,7 @@ class _PlanScreenState extends State<PlanScreen> {
       _applyError = null;
     });
     try {
-      final plan = await widget.api.planWeek();
+      final plan = await widget.api.planWeek(goals: widget.goals);
       if (!mounted) return;
       setState(() {
         _plan = plan;
@@ -97,7 +100,7 @@ class _PlanScreenState extends State<PlanScreen> {
   Widget build(BuildContext context) {
     final plan = _plan;
     return Scaffold(
-      appBar: AppBar(title: const Text('План недели')),
+      appBar: AppBar(title: Text(widget.goals ? 'Цели на неделю' : 'План недели')),
       body: _body(),
       bottomNavigationBar: plan == null ? null : _BottomBar(
         plan: plan,
@@ -124,10 +127,14 @@ class _PlanScreenState extends State<PlanScreen> {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             const Icon(Icons.auto_awesome, size: 48),
             const SizedBox(height: 12),
-            const Text(
-              'Разложу задачи по свободным окнам недели: без сна, без пересечений, '
-              'с перерывами и свободными вечерами. В календарь ничего не запишется, '
-              'пока ты не подтвердишь.',
+            Text(
+              widget.goals
+                  ? 'Разложу недостающие минуты целей по свободным окнам недели: не поверх красного риска, '
+                      'спорт по возможности в сухое светлое время. В календарь ничего не запишется, '
+                      'пока ты не подтвердишь.'
+                  : 'Разложу задачи по свободным окнам недели: без сна, без пересечений, '
+                      'с перерывами и свободными вечерами. В календарь ничего не запишется, '
+                      'пока ты не подтвердишь.',
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
@@ -186,10 +193,21 @@ class _PlanView extends StatelessWidget {
             ),
           ),
         ],
-        if (plan.isEmpty) ...[
+        for (final g in plan.skippedGoals)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Icon(Icons.pause_circle_outline, size: 20),
+              const SizedBox(width: 8),
+              Expanded(child: Text('${g.title}: ${g.reason}')),
+            ]),
+          ),
+        if (plan.isEmpty && plan.skippedGoals.isEmpty) ...[
           const SizedBox(height: 16),
-          const Text('Открытых задач с дедлайном нет. Добавь задачу фразой на главном экране, '
-              'например «курсовая 6 часов до пятницы».'),
+          Text(plan.goals
+              ? 'Все цели выполнены или у них нет нормы. Норму можно задать в обзоре недели.'
+              : 'Открытых задач с дедлайном нет. Добавь задачу фразой на главном экране, '
+                  'например «курсовая 6 часов до пятницы».'),
         ],
         for (final d in days) ...[
           const SizedBox(height: 16),

@@ -120,6 +120,11 @@ type planContext struct {
 	cats  load.CalendarCategories
 	// events are the calendar events of the week, for the risk colours.
 	events []calendar.Event
+	// goals are the goal blocks of this plan (negative ids), skipped the goals
+	// that were left out because of a red risk.
+	goals     map[int64]goalMeta
+	skipped   []skippedGoal
+	exceptKey string
 }
 
 var errCalendars = errors.New("calendars unavailable")
@@ -128,8 +133,8 @@ var errCalendars = errors.New("calendars unavailable")
 // ownIDs are left out: they are the pieces of the request being retried.
 // The planner refuses to work on a partial calendar: a source that failed may
 // hide the very event a chunk would land on.
-func (s *Server) planContext(ctx context.Context, day time.Time, exceptKey string, ownIDs map[string]bool) (planContext, error) {
-	pc := planContext{items: map[int64]store.Item{}}
+func (s *Server) planContext(ctx context.Context, day time.Time, exceptKey string, ownIDs map[string]bool, withGoals bool) (planContext, error) {
+	pc := planContext{items: map[int64]store.Item{}, exceptKey: exceptKey}
 	params, th, cats, err := s.planSettings()
 	if err != nil {
 		return pc, err
@@ -176,6 +181,13 @@ func (s *Server) planContext(ctx context.Context, day time.Time, exceptKey strin
 		})
 	}
 	pc.in = in
+	if withGoals {
+		extra, err := s.goalTasks(&pc)
+		if err != nil {
+			return pc, err
+		}
+		pc.in.Tasks = append(pc.in.Tasks, extra...)
+	}
 	return pc, nil
 }
 
@@ -226,13 +238,15 @@ type planResponse struct {
 	Before     load.Assessment `json:"before"`
 	After      load.Assessment `json:"after"`
 	Violations []string        `json:"violations"`
+	// SkippedGoals: goals left out of a goals plan because of a red risk.
+	SkippedGoals []skippedGoal `json:"skipped_goals"`
 }
 
 func (s *Server) chunkViews(pc planContext, cs []plan.Chunk) []chunkView {
 	out := make([]chunkView, 0, len(cs))
 	for _, c := range cs {
-		it := pc.items[c.ItemID]
-		out = append(out, chunkView{ItemID: c.ItemID, Title: it.Title, Category: load.Category(it.Category),
+		title, cat := pc.info(c.ItemID)
+		out = append(out, chunkView{ItemID: c.ItemID, Title: title, Category: load.Category(cat),
 			Start: c.Start.In(s.loc), End: c.End.In(s.loc)})
 	}
 	return out
@@ -245,8 +259,8 @@ func (s *Server) risksWith(pc planContext, cs []plan.Chunk) (before, after load.
 	}
 	with := append([]calendar.Event(nil), pc.events...)
 	for _, c := range cs {
-		with = append(with, calendar.Event{Source: "google", Title: pc.items[c.ItemID].Title,
-			Start: c.Start, End: c.End, Category: pc.items[c.ItemID].Category})
+		title, cat := pc.info(c.ItemID)
+		with = append(with, calendar.Event{Source: "google", Title: title, Start: c.Start, End: c.End, Category: cat})
 	}
 	after, err = s.assess(with, pc.in.From, pc.in.To)
 	return
@@ -262,33 +276,35 @@ func (s *Server) planFail(w http.ResponseWriter, err error) {
 	s.fail(w, err)
 }
 
-// weekDay reads the optional {"start":"YYYY-MM-DD"} of a plan request.
-func (s *Server) weekDay(w http.ResponseWriter, r *http.Request) (time.Time, bool) {
+// weekDay reads the optional {"start":"YYYY-MM-DD","goals":true} of a plan
+// request: the week, and whether the missing minutes of the goals are planned too.
+func (s *Server) weekDay(w http.ResponseWriter, r *http.Request) (day time.Time, goals, ok bool) {
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBody))
 	if err != nil {
 		writeError(w, http.StatusRequestEntityTooLarge, "body too large")
-		return time.Time{}, false
+		return time.Time{}, false, false
 	}
-	day := s.now()
+	day = s.now()
 	if len(strings.TrimSpace(string(body))) == 0 {
-		return day, true
+		return day, false, true
 	}
 	var in struct {
 		Start string `json:"start"`
+		Goals bool   `json:"goals"`
 	}
 	if err := json.Unmarshal(body, &in); err != nil {
 		writeError(w, http.StatusBadRequest, "body must be a JSON object")
-		return time.Time{}, false
+		return time.Time{}, false, false
 	}
 	if in.Start != "" {
 		t, err := time.ParseInLocation("2006-01-02", in.Start, s.loc)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "start must be YYYY-MM-DD")
-			return time.Time{}, false
+			return time.Time{}, false, false
 		}
 		day = t
 	}
-	return day, true
+	return day, in.Goals, true
 }
 
 // postPlanWeek builds the plan and shows it. Nothing is written anywhere.
@@ -297,11 +313,11 @@ func (s *Server) postPlanWeek(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "calendars are not configured")
 		return
 	}
-	day, ok := s.weekDay(w, r)
+	day, withGoals, ok := s.weekDay(w, r)
 	if !ok {
 		return
 	}
-	pc, err := s.planContext(r.Context(), day, "", nil)
+	pc, err := s.planContext(r.Context(), day, "", nil, withGoals)
 	if err != nil {
 		s.planFail(w, err)
 		return
@@ -309,9 +325,11 @@ func (s *Server) postPlanWeek(w http.ResponseWriter, r *http.Request) {
 	res := plan.Build(pc.in)
 
 	out := planResponse{From: pc.in.From, To: pc.in.To, Placed: s.chunkViews(pc, res.Placed),
-		Unplaced: []unplacedView{}, Deferred: []deferredView{}, Violations: []string{}}
+		Unplaced: []unplacedView{}, Deferred: []deferredView{}, Violations: []string{}, SkippedGoals: []skippedGoal{}}
+	out.SkippedGoals = append(out.SkippedGoals, pc.skipped...)
 	for _, u := range res.Unplaced {
-		out.Unplaced = append(out.Unplaced, unplacedView{ItemID: u.ItemID, Title: pc.items[u.ItemID].Title, MissingMin: u.MissingMin})
+		title, _ := pc.info(u.ItemID)
+		out.Unplaced = append(out.Unplaced, unplacedView{ItemID: u.ItemID, Title: title, MissingMin: u.MissingMin})
 	}
 	for _, id := range res.Deferred {
 		it := pc.items[id]
@@ -329,6 +347,9 @@ func (s *Server) postPlanWeek(w http.ResponseWriter, r *http.Request) {
 }
 
 type applyRequest struct {
+	// Goals: the plan holds goal blocks (negative item ids), so the server
+	// checks it against the goals as well as the tasks.
+	Goals  bool `json:"goals"`
 	Placed []struct {
 		ItemID int64  `json:"item_id"`
 		Start  string `json:"start"`
@@ -391,7 +412,7 @@ func (s *Server) postPlanApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(done) == len(chunks) && len(done) > 0 {
-		s.respondApplied(w, r, chunks, true)
+		s.respondApplied(w, r, chunks, true, in.Goals)
 		return
 	}
 	if s.cal == nil || s.writer == nil {
@@ -404,7 +425,7 @@ func (s *Server) postPlanApply(w http.ResponseWriter, r *http.Request) {
 	for i := range chunks {
 		own[chunkEventID(key, i)] = true
 	}
-	pc, err := s.planContext(r.Context(), chunks[0].Start, key, own)
+	pc, err := s.planContext(r.Context(), chunks[0].Start, key, own, in.Goals)
 	if err != nil {
 		s.planFail(w, err)
 		return
@@ -430,8 +451,8 @@ func (s *Server) postPlanApply(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), writeTimeout)
 	defer cancel()
 	for i, c := range chunks {
-		it := pc.items[c.ItemID]
-		ne := calendar.NewEvent{ID: chunkEventID(key, i), Title: it.Title, Category: it.Category, Start: c.Start, End: c.End}
+		title, cat := pc.info(c.ItemID)
+		ne := calendar.NewEvent{ID: chunkEventID(key, i), Title: title, Category: cat, Start: c.Start, End: c.End}
 		if _, err := s.writer.Insert(ctx, ne); err != nil {
 			if errors.Is(err, calendar.ErrNoWriteAccess) {
 				writeCode(w, http.StatusBadGateway, "no_write_access",
@@ -443,8 +464,8 @@ func (s *Server) postPlanApply(w http.ResponseWriter, r *http.Request) {
 				"Календарь принял не всё. Нажми «Применить» ещё раз: уже записанное второй раз не запишется.")
 			return
 		}
-		rec := store.PlanChunk{ItemID: c.ItemID, ApplyKey: key, Seq: i, EventID: ne.ID,
-			Start: c.Start.Format(time.RFC3339), End: c.End.Format(time.RFC3339), Minutes: int(c.End.Sub(c.Start) / time.Minute)}
+		rec := store.PlanChunk{ItemID: c.ItemID, Goal: goalOf(c.ItemID), ApplyKey: key, Seq: i, EventID: ne.ID,
+			Start: c.Start.UTC().Format(time.RFC3339), End: c.End.UTC().Format(time.RFC3339), Minutes: int(c.End.Sub(c.Start) / time.Minute)}
 		if err := s.store.AddChunk(rec); err != nil {
 			s.fail(w, err)
 			return
@@ -467,11 +488,11 @@ func (s *Server) postPlanApply(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	s.respondApplied(w, r, chunks, false)
+	s.respondApplied(w, r, chunks, false, in.Goals)
 }
 
-func (s *Server) respondApplied(w http.ResponseWriter, r *http.Request, chunks []plan.Chunk, dup bool) {
-	pc, err := s.planContext(r.Context(), chunks[0].Start, "", nil)
+func (s *Server) respondApplied(w http.ResponseWriter, r *http.Request, chunks []plan.Chunk, dup, goals bool) {
+	pc, err := s.planContext(r.Context(), chunks[0].Start, "", nil, goals)
 	out := applyResponse{Applied: []chunkView{}, Duplicate: dup}
 	if err == nil {
 		out.Applied = s.chunkViews(pc, chunks)
@@ -491,7 +512,9 @@ func (s *Server) titles(chunks []plan.Chunk) []chunkView {
 	out := make([]chunkView, 0, len(chunks))
 	for _, c := range chunks {
 		v := chunkView{ItemID: c.ItemID, Start: c.Start.In(s.loc), End: c.End.In(s.loc)}
-		if it, err := s.store.ItemByID(c.ItemID); err == nil {
+		if m, ok := staticGoal(c.ItemID); ok {
+			v.Title, v.Category = m.Title, m.Category
+		} else if it, err := s.store.ItemByID(c.ItemID); err == nil {
 			v.Title, v.Category = it.Title, load.Category(it.Category)
 		}
 		out = append(out, v)

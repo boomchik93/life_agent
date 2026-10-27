@@ -171,14 +171,14 @@ func (s *Store) RecordSync(source, at string, errMsg *string) error {
 // exportTables are the tables of the user's data, in the order of the export.
 var exportTables = []string{
 	"settings", "checkins", "health_daily", "activity_daily", "app_category", "source_state",
-	"items", "plan_chunks", "category_memory", "advice_log", "llm_calls",
+	"items", "plan_chunks", "category_memory", "advice_log", "llm_calls", "goals", "weekly_review",
 }
 
 // dataTables are wiped by DeleteAllData: all of the above except the settings
 // (models, thresholds), which are configuration rather than data about a day.
 // plan_chunks goes before items because of the foreign key.
 var dataTables = []string{
-	"plan_chunks", "items", "category_memory", "checkins", "health_daily", "activity_daily",
+	"weekly_review", "goals", "plan_chunks", "items", "category_memory", "checkins", "health_daily", "activity_daily",
 	"app_category", "source_state", "advice_log", "llm_calls",
 }
 
