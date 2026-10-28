@@ -7,10 +7,15 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
 const maxICSBytes = 5 << 20
+
+// icsReuse is how long a downloaded feed is parsed again without asking the
+// server; a schedule changes seldom, and every week of the cache reads it.
+const icsReuse = 10 * time.Minute
 
 // ICS reads a public iCalendar feed (for example a class schedule).
 type ICS struct {
@@ -18,36 +23,73 @@ type ICS struct {
 	name   string
 	loc    *time.Location
 	client *http.Client
+	now    func() time.Time
+
+	mu           sync.Mutex
+	body         string
+	fetchedAt    time.Time
+	etag         string
+	lastModified string
 }
 
 func NewICS(feedURL, name string, loc *time.Location) *ICS {
-	return &ICS{url: feedURL, name: name, loc: loc, client: &http.Client{Timeout: 20 * time.Second}}
+	return &ICS{url: feedURL, name: name, loc: loc, client: &http.Client{Timeout: 20 * time.Second}, now: time.Now}
 }
 
 func (c *ICS) Events(ctx context.Context, from, to time.Time) ([]Event, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.url, nil)
+	body, err := c.feed(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("bad feed url")
+		return nil, err
 	}
-	req.Header.Set("User-Agent", "life-agent/1")
-	resp, err := c.client.Do(req)
-	if err != nil {
-		// The URL is not part of the message: it may carry personal parameters.
-		return nil, fmt.Errorf("feed request failed")
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("feed status %d", resp.StatusCode)
-	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxICSBytes))
-	if err != nil {
-		return nil, fmt.Errorf("feed read failed")
-	}
-	events, warnings := ParseICS(string(body), c.name, c.loc, from, to)
+	events, warnings := ParseICS(body, c.name, c.loc, from, to)
 	if len(warnings) > 0 && len(events) == 0 {
 		return nil, fmt.Errorf("%s", warnings[0])
 	}
 	return events, nil
+}
+
+// feed returns the text of the feed. A recent copy is used as is; an older
+// one is checked with the validators the server gave, so an unchanged feed is
+// not downloaded again.
+func (c *ICS) feed(ctx context.Context) (string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.body != "" && c.now().Sub(c.fetchedAt) < icsReuse {
+		return c.body, nil
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.url, nil)
+	if err != nil {
+		return "", fmt.Errorf("bad feed url")
+	}
+	req.Header.Set("User-Agent", "life-agent/1")
+	if c.body != "" {
+		if c.etag != "" {
+			req.Header.Set("If-None-Match", c.etag)
+		}
+		if c.lastModified != "" {
+			req.Header.Set("If-Modified-Since", c.lastModified)
+		}
+	}
+	resp, err := c.client.Do(req)
+	if err != nil {
+		// The URL is not part of the message: it may carry personal parameters.
+		return "", fmt.Errorf("feed request failed")
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotModified && c.body != "" {
+		c.fetchedAt = c.now()
+		return c.body, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("feed status %d", resp.StatusCode)
+	}
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxICSBytes))
+	if err != nil {
+		return "", fmt.Errorf("feed read failed")
+	}
+	c.body, c.fetchedAt = string(raw), c.now()
+	c.etag, c.lastModified = resp.Header.Get("ETag"), resp.Header.Get("Last-Modified")
+	return c.body, nil
 }
 
 type icsProp struct {

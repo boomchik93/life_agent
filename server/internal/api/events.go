@@ -87,7 +87,9 @@ func (s *Server) postEvents(w http.ResponseWriter, r *http.Request) {
 		ID: calendar.EventID(key), Title: sl.title, Category: string(res.Category),
 		Recurrence: sl.recurrence, Start: sl.start, End: sl.end,
 	}
-	if _, err := s.writer.Insert(ctx, ne); err != nil {
+	_, err = s.writer.Insert(ctx, ne)
+	s.calendarChanged()
+	if err != nil {
 		if errors.Is(err, calendar.ErrNoWriteAccess) {
 			writeCode(w, http.StatusBadGateway, "no_write_access",
 				"У сервера нет права записи в этот календарь. Дай сервисному аккаунту доступ «Вносить изменения в мероприятия».")

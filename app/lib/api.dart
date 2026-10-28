@@ -6,12 +6,15 @@ import 'package:http/http.dart' as http;
 
 import 'advice.dart';
 import 'card.dart';
+import 'format.dart';
 import 'health.dart';
 import 'llm_info.dart';
 import 'models.dart';
 import 'sources.dart';
+import 'timetrack.dart';
 import 'usage.dart';
 import 'plan.dart';
+import 'response_cache.dart';
 import 'review.dart';
 import 'slot.dart';
 
@@ -120,13 +123,29 @@ abstract class LifeApi {
   Future<void> ping();
 }
 
-class HttpLifeApi implements LifeApi {
-  HttpLifeApi({required this.baseUrl, required this.token, http.Client? client})
-      : _client = client ?? http.Client();
+/// Answers kept from an earlier time, for a screen to show at once while it
+/// asks the server again. Null when there is none.
+abstract interface class CachedReads {
+  Cached<WeekData>? keptWeek({Wall? start});
+  Cached<List<RiskDay>>? keptRiskHistory({int days = 7});
+  Cached<TimeOverview>? keptTimeOverview(DateTime from, DateTime to, {bool compare = false});
+  Cached<ActivitiesData>? keptActivities({String range = 'month'});
+  Cached<Goals>? keptGoals();
+  Cached<Review>? keptReview({Wall? start});
+}
+
+class HttpLifeApi implements LifeApi, TimeApi, CachedReads {
+  HttpLifeApi({required this.baseUrl, required this.token, http.Client? client, this.cache, DateTime Function()? now})
+      : _client = client ?? http.Client(),
+        _now = now ?? DateTime.now;
 
   final String baseUrl;
   final String token;
   final http.Client _client;
+
+  /// Where the answers of the screens are kept; null: nowhere.
+  final ResponseCache? cache;
+  final DateTime Function() _now;
 
   static const _timeout = Duration(seconds: 30);
   // The server waits for the models up to 85 s.
@@ -218,6 +237,61 @@ class HttpLifeApi implements LifeApi {
     }
   }
 
+  /// A GET whose answer is kept for the next start of the screen.
+  Future<Map<String, dynamic>> _getKept(Uri uri) async {
+    final j = await _send('GET', uri);
+    cache?.write(uri.toString(), j, _now());
+    return j;
+  }
+
+  /// The kept answer of [uri] read by [read]; null when there is none or it
+  /// no longer reads.
+  Cached<T>? _kept<T>(Uri uri, T Function(Map<String, dynamic>) read) {
+    final c = cache?.read(uri.toString());
+    if (c == null) return null;
+    try {
+      return Cached(read(c.value), c.at);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Uri _weekUri(Wall? start) => _uri('/v1/week', start == null ? null : {'start': start.ymd});
+
+  @override
+  Cached<WeekData>? keptWeek({Wall? start}) {
+    final kept = _kept(_weekUri(start), WeekData.fromJson);
+    if (kept == null || start != null) return kept;
+    // "This week" of an earlier week is not shown as this one.
+    final today = wallNow(_now()).dayStart;
+    return !today.isBefore(kept.value.from) && today.isBefore(kept.value.to) ? kept : null;
+  }
+
+  Uri _riskHistoryUri(int days) => _uri('/v1/risks/history', {'days': '$days'});
+
+  @override
+  Cached<List<RiskDay>>? keptRiskHistory({int days = 7}) => _kept(_riskHistoryUri(days), _riskDays);
+
+  Uri _timeOverviewUri(DateTime from, DateTime to, bool compare) =>
+      _uri('/v1/time/overview', {'from': _day(from), 'to': _day(to), if (compare) 'compare': '1'});
+
+  @override
+  Cached<TimeOverview>? keptTimeOverview(DateTime from, DateTime to, {bool compare = false}) =>
+      _kept(_timeOverviewUri(from, to, compare), TimeOverview.fromJson);
+
+  Uri _activitiesUri(String range) => _uri('/v1/activities', {'range': range});
+
+  @override
+  Cached<ActivitiesData>? keptActivities({String range = 'month'}) => _kept(_activitiesUri(range), ActivitiesData.fromJson);
+
+  @override
+  Cached<Goals>? keptGoals() => _kept(_uri('/v1/goals'), Goals.fromJson);
+
+  Uri _reviewUri(Wall? start) => _uri('/v1/review/week', start == null ? null : {'start': start.ymd});
+
+  @override
+  Cached<Review>? keptReview({Wall? start}) => _kept(_reviewUri(start), Review.fromJson);
+
   String? _serverField(http.Response res, String key) {
     try {
       return (jsonDecode(utf8.decode(res.bodyBytes)) as Map)[key] as String?;
@@ -230,7 +304,7 @@ class HttpLifeApi implements LifeApi {
 
   @override
   Future<WeekData> week({Wall? start}) async {
-    final j = await _send('GET', _uri('/v1/week', start == null ? null : {'start': start.ymd}));
+    final j = await _getKept(_weekUri(start));
     try {
       return WeekData.fromJson(j);
     } catch (_) {
@@ -392,6 +466,7 @@ class HttpLifeApi implements LifeApi {
   @override
   Future<void> deleteAllData() async {
     await _send('DELETE', _uri('/v1/data'), body: {'confirm': 'delete-all-data'});
+    cache?.clear();
   }
 
   @override
@@ -435,7 +510,7 @@ class HttpLifeApi implements LifeApi {
 
   @override
   Future<Goals> goals() async {
-    final j = await _send('GET', _uri('/v1/goals'));
+    final j = await _getKept(_uri('/v1/goals'));
     try {
       return Goals.fromJson(j);
     } catch (_) {
@@ -455,7 +530,7 @@ class HttpLifeApi implements LifeApi {
 
   @override
   Future<Review> reviewWeek({Wall? start}) async {
-    final j = await _send('GET', _uri('/v1/review/week', start == null ? null : {'start': start.ymd}));
+    final j = await _getKept(_reviewUri(start));
     try {
       return Review.fromJson(j);
     } catch (_) {
@@ -490,6 +565,51 @@ class HttpLifeApi implements LifeApi {
       throw const ApiException(ApiProblem.server, 'Сервер вернул неожиданные данные. Обнови приложение.');
     }
   }
+
+  // ---- the "Время" tab ----
+
+  String _day(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  T _unexpected<T>(T Function() read) {
+    try {
+      return read();
+    } catch (_) {
+      throw const ApiException(ApiProblem.server, 'Сервер вернул неожиданные данные. Обнови приложение.');
+    }
+  }
+
+  @override
+  Future<TimeOverview> timeOverview(DateTime from, DateTime to, {bool compare = false}) async {
+    final j = await _getKept(_timeOverviewUri(from, to, compare));
+    return _unexpected(() => TimeOverview.fromJson(j));
+  }
+
+  @override
+  Future<CategoryDetail> timeCategory(String category, DateTime from, DateTime to) async {
+    final j = await _send('GET', _uri('/v1/time/category', {'category': category, 'from': _day(from), 'to': _day(to)}));
+    return _unexpected(() => CategoryDetail.fromJson(j));
+  }
+
+  @override
+  Future<ActivitiesData> activities({String range = 'month'}) async {
+    final j = await _getKept(_activitiesUri(range));
+    return _unexpected(() => ActivitiesData.fromJson(j));
+  }
+
+  @override
+  Future<void> setAppCategory(String name, String category) async {
+    await _send('PUT', _uri('/v1/apps/category'), body: {'name': name, 'category': category});
+  }
+
+  @override
+  Future<List<RiskDay>> riskHistory({int days = 7}) async {
+    final j = await _getKept(_riskHistoryUri(days));
+    return _unexpected(() => _riskDays(j));
+  }
+
+  static List<RiskDay> _riskDays(Map<String, dynamic> j) =>
+      [for (final d in (j['days'] as List)) RiskDay.fromJson(d as Map<String, dynamic>)];
 
   @override
   Future<void> ping() async {

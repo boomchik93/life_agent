@@ -130,14 +130,29 @@ func buildLLM(cfg config.Config, st *store.Store, logger *slog.Logger) (*llm.Cli
 	return client, &api.LLMInfo{Defaults: defaults, Catalog: catalog, Quota: provider}, nil
 }
 
+// calendarFresh is how long the events of a week are answered without a new
+// read; after that the old events are answered while the week is read again.
+// A write by the agent drops them at once.
+const calendarFresh = time.Minute
+
+// calendarWarmEvery is how often the weeks the screens open with are read in
+// the background, so a request seldom waits for the calendars.
+const calendarWarmEvery = 3 * time.Minute
+
+// calendarWarmWeeks is how many weeks back are kept warm: the activities tab
+// shows twelve.
+const calendarWarmWeeks = 12
+
 func serve(cfg config.Config, st *store.Store, logger *slog.Logger) error {
 	var collector api.Collector
+	var cache *calendar.Cache
 	agg, err := buildCalendars(context.Background(), cfg, logger)
 	if err != nil {
 		return err
 	}
 	if agg != nil {
-		collector = agg
+		cache = calendar.NewCache(agg.Sources, cfg.Location, calendarFresh)
+		collector = cache
 	}
 
 	opts := api.Options{
@@ -187,6 +202,9 @@ func serve(cfg config.Config, st *store.Store, logger *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	go prepareAdviceLoop(ctx, app, logger)
+	if cache != nil {
+		go warmCalendarLoop(ctx, cache, cfg.Location)
+	}
 	go pruneLoop(ctx, st, cfg.Location, logger)
 	activity.Loop(ctx, collectors(cfg, st), st, time.Now, logger)
 
@@ -208,6 +226,26 @@ func serve(cfg config.Config, st *store.Store, logger *slog.Logger) error {
 }
 
 func nopLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
+
+// warmCalendarLoop keeps the weeks from calendarWarmWeeks back to the next one
+// read; the cache itself decides whether a week needs a new read.
+func warmCalendarLoop(ctx context.Context, cache *calendar.Cache, loc *time.Location) {
+	warm := func() {
+		monday, _ := calendar.WeekBounds(time.Now(), loc)
+		cache.Collect(ctx, monday.AddDate(0, 0, -7*calendarWarmWeeks), monday.AddDate(0, 0, 14))
+	}
+	warm()
+	t := time.NewTicker(calendarWarmEvery)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			warm()
+		}
+	}
+}
 
 // adviceEvery is how often the server checks whether an automatic advice is due.
 const adviceEvery = time.Hour

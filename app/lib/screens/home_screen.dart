@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 
+import '../api.dart';
 import '../background.dart';
 import '../controller.dart';
 import '../format.dart';
 import '../models.dart';
 import '../notifications.dart';
 import '../theme.dart';
-import '../widgets/error_view.dart';
+import '../timetrack.dart';
+import '../theme_mode.dart';
+import '../widgets/next_card.dart';
+import 'more_screen.dart';
+import 'time_screen.dart';
+import '../widgets/loadable.dart';
 import '../widgets/composer.dart';
 import '../widgets/risk_indicator.dart';
 import '../widgets/week_view.dart';
@@ -19,9 +25,10 @@ import 'settings_screen.dart';
 import 'week_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.controller, this.now, this.scheduler, this.notifier});
+  const HomeScreen({super.key, required this.controller, this.themeMode, this.now, this.scheduler, this.notifier});
 
   final AppController controller;
+  final ThemeModeController? themeMode;
   final DateTime Function()? now;
 
   /// Replaceable in tests; the phone uses WorkManager and system notifications.
@@ -32,26 +39,65 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  Future<WeekData>? _future;
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  final _week = Loadable<WeekData>();
+  final _history = Loadable<List<RiskDay>>();
+  DateTime _loadedAt = DateTime.now();
   bool _checkinDone = true; // hidden until the stored date is read
   int _tab = 0;
+  final Set<int> _opened = {0};
+  final ValueNotifier<int> _calendarTick = ValueNotifier(0);
 
   AppController get _c => widget.controller;
   Wall get _today => wallNow(widget.now?.call());
 
+  /// After this long in the background the screens ask the server again.
+  static const _resumeAfter = Duration(minutes: 2);
+
   @override
   void initState() {
     super.initState();
-    _c.addListener(_reload);
-    _future = _c.api?.week();
+    _c.addListener(_onConnection);
+    WidgetsBinding.instance.addObserver(this);
+    _load();
     _readCheckinDate();
   }
 
   @override
   void dispose() {
-    _c.removeListener(_reload);
+    _c.removeListener(_onConnection);
+    WidgetsBinding.instance.removeObserver(this);
+    _calendarTick.dispose();
+    _week.dispose();
+    _history.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    _readCheckinDate(); // a new day may have begun
+    if (DateTime.now().difference(_loadedAt) >= _resumeAfter) _reload();
+  }
+
+  /// Another server: what is shown belongs to the old one.
+  void _onConnection() {
+    _calendarTick.value++;
+    setState(() {});
+    _load(clear: true);
+  }
+
+  /// The week and the colours of the last days. What was shown stays until
+  /// the answers come; on the first start, the answers kept on the phone.
+  Future<void> _load({bool clear = false}) {
+    _loadedAt = DateTime.now();
+    final api = _c.api;
+    if (api == null) return Future.value();
+    final kept = api is CachedReads ? api as CachedReads : null;
+    return Future.wait([
+      _week.load(api.week(), kept: kept?.keptWeek(), clear: clear),
+      if (api is TimeApi) _history.load((api as TimeApi).riskHistory(), kept: kept?.keptRiskHistory(), clear: clear),
+    ]);
   }
 
   Future<void> _readCheckinDate() async {
@@ -59,11 +105,10 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) setState(() => _checkinDone = last == _today.ymd);
   }
 
-  void _reload() {
-    final future = _c.api?.week();
-    setState(() {
-      _future = future;
-    });
+  /// Asks again after a change: on this screen and on the tabs that listen.
+  Future<void> _reload() {
+    _calendarTick.value++;
+    return _load();
   }
 
   Future<void> _openCheckin() async {
@@ -124,21 +169,28 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _tabBody() {
     final api = _c.api;
-    if (_tab == 0 || api == null) return _todayTab();
-    // Each tab is a full screen with its own app bar; the key rebuilds it
-    // when the server settings change.
-    final key = ValueKey('${_tab}_${identityHashCode(api)}');
-    return switch (_tab) {
-      1 => WeekScreen(key: key, api: api, now: widget.now),
-      2 => ReviewScreen(key: key, api: api),
-      _ => AdviceScreen(
-          key: key,
-          api: api,
-          storage: _c.storage,
-          scheduler: widget.scheduler ?? WorkmanagerScheduler(),
-          notifier: widget.notifier ?? LocalNotifier(),
-        ),
-    };
+    if (api == null) return _todayTab();
+    // The tabs stay alive once opened: switching back does not reload them.
+    // The key rebuilds them when the server settings change.
+    final id = identityHashCode(api);
+    Widget tab(int i) {
+      if (i != _tab && !_opened.contains(i)) return const SizedBox.shrink();
+      final key = ValueKey('${i}_$id');
+      return switch (i) {
+        0 => _todayTab(),
+        1 => WeekScreen(key: key, api: api, now: widget.now, reload: _calendarTick),
+        2 => TimeScreen(key: key, api: api, now: widget.now, reload: _calendarTick),
+        3 => ReviewScreen(key: key, api: api),
+        _ => MoreScreen(
+            controller: _c,
+            themeMode: widget.themeMode ?? ThemeModeController(),
+            scheduler: widget.scheduler,
+            notifier: widget.notifier,
+          ),
+      };
+    }
+
+    return IndexedStack(index: _tab, children: [for (var i = 0; i < 5; i++) tab(i)]);
   }
 
   @override
@@ -149,12 +201,16 @@ class _HomeScreenState extends State<HomeScreen> {
           ? null
           : NavigationBar(
               selectedIndex: _tab,
-              onDestinationSelected: (i) => setState(() => _tab = i),
+              onDestinationSelected: (i) => setState(() {
+                _tab = i;
+                _opened.add(i);
+              }),
               destinations: const [
                 NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Сегодня'),
                 NavigationDestination(icon: Icon(Icons.calendar_month_outlined), selectedIcon: Icon(Icons.calendar_month), label: 'Неделя'),
+                NavigationDestination(icon: Icon(Icons.schedule), selectedIcon: Icon(Icons.access_time_filled), label: 'Время'),
                 NavigationDestination(icon: Icon(Icons.track_changes), label: 'Цели'),
-                NavigationDestination(icon: Icon(Icons.lightbulb_outline), selectedIcon: Icon(Icons.lightbulb), label: 'Совет'),
+                NavigationDestination(icon: Icon(Icons.menu), label: 'Ещё'),
               ],
             ),
     );
@@ -182,7 +238,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               if (_c.api != null)
                 IconButton(tooltip: 'План недели', icon: const Icon(Icons.auto_awesome), onPressed: _openPlan),
-              IconButton(tooltip: 'Настройки', icon: const Icon(Icons.tune), onPressed: _openSettings),
+              if (_c.api == null) IconButton(tooltip: 'Настройки', icon: const Icon(Icons.tune), onPressed: _openSettings),
             ],
           ),
         ),
@@ -200,8 +256,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _body() {
-    final future = _future;
-    if (future == null) {
+    if (_c.api == null) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -216,27 +271,51 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     }
-    return FutureBuilder<WeekData>(
-      future: future,
-      builder: (context, snap) {
-        if (snap.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snap.hasError) {
-          return ErrorView(error: snap.error!, onRetry: _reload, onSettings: _openSettings);
-        }
-        final week = snap.data!;
+    return LoadableView<WeekData>(
+      source: _week,
+      onRetry: _reload,
+      onSettings: _openSettings,
+      builder: (context, week) {
         return RefreshIndicator(
-          onRefresh: () async {
-            _reload();
-            await _future!.catchError((_) => week);
-          },
+          onRefresh: _reload,
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
             children: [
+              NextCard(week: week, now: _today),
               if (!_checkinDone) _CheckinCard(onTap: _openCheckin),
               if (week.warnings.isNotEmpty) _Warnings(week.warnings),
-              RiskGrid(risks: week.risks),
+              ListenableBuilder(
+                listenable: _history,
+                builder: (context, _) {
+                  final days = _history.data;
+                  RiskColor c(String n) => RiskColor.values.firstWhere((x) => x.name == n, orElse: () => RiskColor.gray);
+                  final spark = days == null || days.isEmpty
+                      ? null
+                      : {
+                          'Недосып': [for (final d in days) c(d.sleep)],
+                          'Перегруз': [for (final d in days) c(d.overload)],
+                          'Нет отдыха': [for (final d in days) c(d.noRest)],
+                          'Состояние': [for (final d in days) c(d.state)],
+                        };
+                  return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    if (days != null && days.isNotEmpty) _WeekStrip(week: week, days: days, today: _today),
+                    if (spark != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text('Риски', style: Theme.of(context).textTheme.titleLarge),
+                            Text('динамика за 7 дней', style: Theme.of(context).textTheme.bodySmall),
+                          ],
+                        ),
+                      ),
+                    RiskGrid(risks: week.risks, history: spark),
+                  ]);
+                },
+              ),
               Padding(
                 padding: const EdgeInsets.only(top: 20),
                 child: Wrap(
@@ -326,6 +405,77 @@ class _Warnings extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The days of this week with the state of each: the worst risk of that day.
+class _WeekStrip extends StatelessWidget {
+  const _WeekStrip({required this.week, required this.days, required this.today});
+
+  final WeekData week;
+  final List<RiskDay> days;
+  final Wall today;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final pal = Palette.of(context);
+    final b = theme.brightness;
+    final byDate = {for (final d in days) d.date: d};
+    final monday = week.from;
+    RiskColor c(String n) => RiskColor.values.firstWhere((x) => x.name == n, orElse: () => RiskColor.gray);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Text('Эта неделя', style: theme.textTheme.titleLarge),
+            Text(weekRange(week.from, week.to), style: theme.textTheme.bodySmall),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(children: [
+          for (var i = 0; i < 7; i++)
+            Expanded(
+              child: Builder(builder: (context) {
+                final d = monday.addDays(i);
+                final r = byDate[d.ymd];
+                final isToday = d.sameDay(today);
+                final color = r == null ? null : riskColor(c(r.worst), b);
+                return Semantics(
+                  label: '${weekdayLong[i]}, ${d.day}: ${r == null ? 'ещё не было' : riskLabel(c(r.worst))}',
+                  excludeSemantics: true,
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isToday ? pal.container : pal.surface,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: isToday ? pal.primary : pal.line, width: isToday ? 2 : 1),
+                    ),
+                    child: Column(children: [
+                      Text(weekdayShort[i][0].toUpperCase() + weekdayShort[i].substring(1), style: theme.textTheme.bodySmall),
+                      Text('${d.day}', style: theme.textTheme.titleSmall),
+                      const SizedBox(height: 4),
+                      Container(
+                        width: 22,
+                        height: 22,
+                        decoration: BoxDecoration(color: color ?? Colors.transparent, shape: BoxShape.circle, border: color == null ? Border.all(color: pal.line) : null),
+                        child: color == null
+                            ? null
+                            : Icon(riskIcon(c(r!.worst)), size: 14, color: ThemeData.estimateBrightnessForColor(color) == Brightness.dark ? Colors.white : const Color(0xFF1A1A1A)),
+                      ),
+                    ]),
+                  ),
+                );
+              }),
+            ),
+        ]),
+      ]),
     );
   }
 }

@@ -6,6 +6,8 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
 import android.os.Process
 import android.provider.Settings
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -13,6 +15,8 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 /**
  * Reads when apps were in the foreground. A session is a package and two
@@ -23,6 +27,10 @@ class LifeUsagePlugin : FlutterPlugin, MethodCallHandler {
     private lateinit var context: Context
     private lateinit var channel: MethodChannel
 
+    /** The events of weeks take long to read: not on the main thread, which draws and takes touches. */
+    private val worker: ExecutorService = Executors.newSingleThreadExecutor()
+    private val main = Handler(Looper.getMainLooper())
+
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         context = binding.applicationContext
         channel = MethodChannel(binding.binaryMessenger, "dev.boomchick.life_usage")
@@ -31,6 +39,7 @@ class LifeUsagePlugin : FlutterPlugin, MethodCallHandler {
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         channel.setMethodCallHandler(null)
+        worker.shutdown()
     }
 
     override fun onMethodCall(call: MethodCall, result: Result) {
@@ -49,7 +58,14 @@ class LifeUsagePlugin : FlutterPlugin, MethodCallHandler {
                 } else if (!hasAccess()) {
                     result.error("no_access", "usage access is not granted", null)
                 } else {
-                    result.success(sessions(from, to))
+                    worker.execute {
+                        try {
+                            val list = sessions(from, to)
+                            main.post { result.success(list) }
+                        } catch (e: Exception) {
+                            main.post { result.error("read_failed", e.message, null) }
+                        }
+                    }
                 }
             }
             else -> result.notImplemented()

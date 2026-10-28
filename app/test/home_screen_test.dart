@@ -29,6 +29,9 @@ void main() {
         state: risk('gray'),
       ),
     );
+    t.view.physicalSize = const Size(1080, 4000);
+    t.view.devicePixelRatio = 3;
+    addTearDown(t.view.reset);
     await start(t, api, storage: MemoryStorage(connection: conn, checkinDate: '2026-10-28'));
 
     for (final title in ['Недосып', 'Перегруз', 'Нет отдыха', 'Состояние']) {
@@ -42,7 +45,7 @@ void main() {
     expect(find.text('Понедельник, 26 октября'), findsOneWidget);
     expect(find.text('Пятница, 30 октября'), findsOneWidget);
     expect(find.text('18:00–20:00'), findsOneWidget);
-    expect(find.text('КВН'), findsOneWidget);
+    expect(find.text('КВН'), findsNWidgets(2)); // the "Дальше" card and the week list
     expect(find.text('Нет событий'), findsNWidgets(6));
   });
 

@@ -65,13 +65,18 @@ func (a *Aggregator) Collect(ctx context.Context, from, to time.Time) ([]Event, 
 		}
 		all = append(all, r.events...)
 	}
+	sortEvents(all)
+	return all, warnings
+}
+
+// sortEvents orders events by start, then by end.
+func sortEvents(all []Event) {
 	sort.SliceStable(all, func(i, j int) bool {
 		if !all[i].Start.Equal(all[j].Start) {
 			return all[i].Start.Before(all[j].Start)
 		}
 		return all[i].End.Before(all[j].End)
 	})
-	return all, warnings
 }
 
 // WeekBounds returns Monday 00:00 of the week containing t and the next Monday 00:00.

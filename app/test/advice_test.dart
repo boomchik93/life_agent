@@ -236,9 +236,11 @@ void main() {
       expect(find.text('Сдвинь сдачу на среду. Ляг до полуночи.'), findsOneWidget);
     });
 
-    testWidgets('the lightbulb opens the advice screen', (t) async {
+    testWidgets('the advice opens from the "Ещё" tab', (t) async {
       final (api, _) = await start(t);
-      await t.tap(find.byTooltip('Совет'));
+      await t.tap(find.text('Ещё'));
+      await t.pumpAndSettle();
+      await t.tap(find.text('Совет'));
       await t.pumpAndSettle();
       expect(find.text('Попросить совет'), findsOneWidget);
       expect(api.adviceRequests, 0);

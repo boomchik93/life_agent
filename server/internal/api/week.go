@@ -6,6 +6,7 @@ import (
 
 	"lifeagent/internal/calendar"
 	"lifeagent/internal/load"
+	"lifeagent/internal/store"
 )
 
 const (
@@ -68,38 +69,76 @@ func (s *Server) getWeek(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) assess(events []calendar.Event, from, to time.Time) (load.Assessment, error) {
+	return s.assessAt(events, from, to, s.now())
+}
+
+// assessAt evaluates the risks as they were at [at]: the history of the home
+// screen asks for earlier moments.
+func (s *Server) assessAt(events []calendar.Event, from, to, at time.Time) (load.Assessment, error) {
+	d, err := s.riskData(at, at)
+	if err != nil {
+		return load.Assessment{}, err
+	}
+	return s.assessWith(d, events, from, to, at), nil
+}
+
+// riskData is what the risks are made of besides the events: the settings
+// and the check-ins and health days the assessments of [first, last] need.
+type riskData struct {
+	t        load.Thresholds
+	cats     load.CalendarCategories
+	checkins []store.Checkin
+	health   []store.Health
+}
+
+// stateFirst is the first day whose state counts for an assessment at [at].
+func (s *Server) stateFirst(t load.Thresholds, at time.Time) time.Time {
+	now := at.In(s.loc)
+	return time.Date(now.Year(), now.Month(), now.Day()-(t.StateDays-1), 0, 0, 0, 0, s.loc)
+}
+
+// riskData reads, in one go, what the assessments at the moments from
+// [first] to [last] need.
+func (s *Server) riskData(first, last time.Time) (riskData, error) {
 	t, cats, err := s.loadSettings()
 	if err != nil {
-		return load.Assessment{}, err
+		return riskData{}, err
 	}
-	now := s.now().In(s.loc)
-	first := time.Date(now.Year(), now.Month(), now.Day()-(t.StateDays-1), 0, 0, 0, 0, s.loc)
-	stored, err := s.store.Checkins(first.Format("2006-01-02"), now.Format("2006-01-02"))
+	from, to := s.stateFirst(t, first).Format("2006-01-02"), last.In(s.loc).Format("2006-01-02")
+	stored, err := s.store.Checkins(from, to)
 	if err != nil {
-		return load.Assessment{}, err
+		return riskData{}, err
 	}
-
-	health, err := s.store.Healths(first.Format("2006-01-02"), now.Format("2006-01-02"))
+	health, err := s.store.Healths(from, to)
 	if err != nil {
-		return load.Assessment{}, err
+		return riskData{}, err
 	}
+	return riskData{t: t, cats: cats, checkins: stored, health: health}, nil
+}
 
+// assessWith evaluates the risks at [at] from data read before; only the
+// days of its window are taken.
+func (s *Server) assessWith(d riskData, events []calendar.Event, from, to, at time.Time) load.Assessment {
+	now := at.In(s.loc)
+	first, last := s.stateFirst(d.t, at).Format("2006-01-02"), now.Format("2006-01-02")
 	in := load.Input{
-		From: from, To: to, Loc: s.loc, Now: now, T: t,
-		RestTracked: cats.RestTracked(),
+		From: from, To: to, Loc: s.loc, Now: now, T: d.t,
+		RestTracked: d.cats.RestTracked(),
 	}
-	for _, h := range health {
-		if h.SleepHours != nil {
+	for _, h := range d.health {
+		if h.SleepHours != nil && h.Date >= first && h.Date <= last {
 			in.Sleep = append(in.Sleep, load.SleepDay{Date: h.Date, Hours: *h.SleepHours})
 		}
 	}
 	for _, e := range events {
-		in.Events = append(in.Events, load.Event{Start: e.Start, End: e.End, AllDay: e.AllDay, Category: eventCategory(cats, e)})
+		in.Events = append(in.Events, load.Event{Start: e.Start, End: e.End, AllDay: e.AllDay, Category: eventCategory(d.cats, e)})
 	}
-	for _, c := range stored {
-		in.Checkins = append(in.Checkins, load.Checkin{Date: c.Date, Energy: c.Energy, Mood: c.Mood, SleepHours: c.SleepHours})
+	for _, c := range d.checkins {
+		if c.Date >= first && c.Date <= last {
+			in.Checkins = append(in.Checkins, load.Checkin{Date: c.Date, Energy: c.Energy, Mood: c.Mood, SleepHours: c.SleepHours})
+		}
 	}
-	return load.Assess(in), nil
+	return load.Assess(in)
 }
 
 // eventCategory is the category of a calendar event. An event the agent wrote

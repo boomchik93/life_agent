@@ -301,6 +301,41 @@ func TestICSFetch(t *testing.T) {
 	}
 }
 
+func TestICSReusesFeedAndAsksIfChanged(t *testing.T) {
+	var gets, notModified int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gets++
+		if r.Header.Get("If-None-Match") == `"v1"` {
+			notModified++
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		w.Header().Set("ETag", `"v1"`)
+		w.Write([]byte(scheduleICS))
+	}))
+	defer srv.Close()
+	from, to := week()
+	now := time.Date(2026, 10, 28, 9, 0, 0, 0, time.UTC)
+	c := NewICS(srv.URL+"/feed.ics", "S", yekat)
+	c.now = func() time.Time { return now }
+
+	for range 2 {
+		if ev, err := c.Events(context.Background(), from, to); err != nil || len(ev) != 2 {
+			t.Fatalf("events %d, err %v", len(ev), err)
+		}
+	}
+	if gets != 1 {
+		t.Errorf("gets %d, want 1: a recent copy is reused", gets)
+	}
+	now = now.Add(icsReuse)
+	if ev, err := c.Events(context.Background(), from, to); err != nil || len(ev) != 2 {
+		t.Fatalf("after 304: events %d, err %v", len(ev), err)
+	}
+	if gets != 2 || notModified != 1 {
+		t.Errorf("gets %d, not modified %d", gets, notModified)
+	}
+}
+
 // --- Google ---
 
 func fakeGoogle(t *testing.T, handler http.HandlerFunc) *Google {

@@ -43,10 +43,14 @@ String _num(double v) =>
         .replaceFirst('.', ',');
 
 class RiskIndicator extends StatelessWidget {
-  const RiskIndicator({super.key, required this.title, required this.risk});
+  const RiskIndicator({super.key, required this.title, required this.risk, this.compact = false, this.history});
 
   final String title;
+  final bool compact;
   final Risk risk;
+
+  /// The colours of the last days, oldest first, drawn as small bars.
+  final List<RiskColor>? history;
 
   @override
   Widget build(BuildContext context) {
@@ -61,42 +65,83 @@ class RiskIndicator extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           onTap: () => showRiskDetails(context, title, risk),
           child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: color,
-                    shape: BoxShape.circle,
+            padding: EdgeInsets.all(compact ? 12 : 14),
+            child: compact
+                ? Row(children: [
+                    _disc(color),
+                    const SizedBox(width: 8),
+                    Expanded(child: _texts(context)),
+                  ])
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(crossAxisAlignment: CrossAxisAlignment.end, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                        _disc(color),
+                        if (history != null && history!.isNotEmpty) _Spark(history!),
+                      ]),
+                      const SizedBox(height: 10),
+                      _texts(context),
+                    ],
                   ),
-                  child: Icon(
-                    riskIcon(risk.color),
-                    size: 20,
-                    color:
-                        ThemeData.estimateBrightnessForColor(color) ==
-                            Brightness.dark
-                        ? Colors.white
-                        : const Color(0xFF1A1A1A),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(title, style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 2),
-                Text(
-                  riskLabel(risk.color),
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: _textOn(risk.color, Theme.of(context).brightness),
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Seven small bars: the taller and the warmer, the worse the day was.
+class _Spark extends StatelessWidget {
+  const _Spark(this.days);
+
+  final List<RiskColor> days;
+
+  @override
+  Widget build(BuildContext context) {
+    final b = Theme.of(context).brightness;
+    return Semantics(
+      label: 'Динамика за ${days.length} дней',
+      excludeSemantics: true,
+      child: SizedBox(
+        height: 28,
+        child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          for (final c in days)
+            Container(
+              width: 5,
+              height: switch (c) { RiskColor.red => 28.0, RiskColor.yellow => 18.0, RiskColor.green => 9.0, _ => 5.0 },
+              margin: const EdgeInsets.only(left: 3),
+              decoration: BoxDecoration(color: riskColor(c, b), borderRadius: BorderRadius.circular(2)),
+            ),
+        ]),
+      ),
+    );
+  }
+}
+
+extension on RiskIndicator {
+  Widget _disc(Color color) => Container(
+        width: compact ? 32 : 36,
+        height: compact ? 32 : 36,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        child: Icon(riskIcon(risk.color),
+            size: 20,
+            color: ThemeData.estimateBrightnessForColor(color) == Brightness.dark ? Colors.white : const Color(0xFF1A1A1A)),
+      );
+
+  Widget _texts(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (compact)
+          FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: Text(title, style: theme.textTheme.titleSmall))
+        else
+          Text(title, style: theme.textTheme.titleMedium),
+        Text(riskLabel(risk.color),
+            style: theme.textTheme.titleSmall?.copyWith(color: _textOn(risk.color, theme.brightness), fontSize: compact ? 14 : null)),
+      ],
     );
   }
 }
@@ -153,9 +198,13 @@ void showRiskDetails(BuildContext context, String title, Risk risk) {
 }
 
 class RiskGrid extends StatelessWidget {
-  const RiskGrid({super.key, required this.risks});
+  const RiskGrid({super.key, required this.risks, this.compact = false, this.history});
 
   final Risks risks;
+  final bool compact;
+
+  /// The last days of every risk by title; null: no bars.
+  final Map<String, List<RiskColor>>? history;
 
   @override
   Widget build(BuildContext context) {
@@ -170,9 +219,9 @@ class RiskGrid extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(child: RiskIndicator(title: items[i].$1, risk: items[i].$2)),
+              Expanded(child: RiskIndicator(title: items[i].$1, risk: items[i].$2, compact: compact, history: history?[items[i].$1])),
               const SizedBox(width: 8),
-              Expanded(child: RiskIndicator(title: items[i + 1].$1, risk: items[i + 1].$2)),
+              Expanded(child: RiskIndicator(title: items[i + 1].$1, risk: items[i + 1].$2, compact: compact, history: history?[items[i + 1].$1])),
             ],
           ),
         );

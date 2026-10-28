@@ -453,7 +453,9 @@ func (s *Server) postPlanApply(w http.ResponseWriter, r *http.Request) {
 	for i, c := range chunks {
 		title, cat := pc.info(c.ItemID)
 		ne := calendar.NewEvent{ID: chunkEventID(key, i), Title: title, Category: cat, Start: c.Start, End: c.End}
-		if _, err := s.writer.Insert(ctx, ne); err != nil {
+		_, err := s.writer.Insert(ctx, ne)
+		s.calendarChanged()
+		if err != nil {
 			if errors.Is(err, calendar.ErrNoWriteAccess) {
 				writeCode(w, http.StatusBadGateway, "no_write_access",
 					"У сервера нет права записи в этот календарь. Дай сервисному аккаунту доступ «Вносить изменения в мероприятия».")

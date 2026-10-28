@@ -29,6 +29,15 @@ class _ReviewScreenState extends State<ReviewScreen> {
   @override
   void initState() {
     super.initState();
+    // The answers kept from the last start show at once, while they are renewed.
+    final api = widget.api;
+    if (api is CachedReads) {
+      final goals = (api as CachedReads).keptGoals(), review = (api as CachedReads).keptReview();
+      if (goals != null && review != null) {
+        _goals = goals.value;
+        _review = review.value;
+      }
+    }
     _load();
   }
 

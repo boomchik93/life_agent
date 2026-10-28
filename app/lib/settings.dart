@@ -2,6 +2,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
+import 'response_cache.dart';
 
 class ConnectionSettings {
   const ConnectionSettings({required this.baseUrl, required this.token});
@@ -134,5 +135,10 @@ class PlatformStorage implements AppStorage {
 }
 
 /// Builds the API client for the stored settings; null while they are incomplete.
-LifeApi? apiFor(ConnectionSettings c) =>
-    c.isComplete ? HttpLifeApi(baseUrl: c.baseUrl.trim(), token: c.token.trim()) : null;
+LifeApi? apiFor(ConnectionSettings c, {ResponseCache? cache}) =>
+    c.isComplete ? HttpLifeApi(baseUrl: c.baseUrl.trim(), token: c.token.trim(), cache: cache) : null;
+
+/// The client of the app itself: the answers of the screens are kept on the
+/// phone for the next start.
+Future<LifeApi?> cachedApiFor(ConnectionSettings c) async =>
+    c.isComplete ? apiFor(c, cache: await ResponseCache.open(c.baseUrl.trim())) : null;

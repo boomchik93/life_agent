@@ -25,6 +25,16 @@ type Collector interface {
 	Collect(ctx context.Context, from, to time.Time) ([]calendar.Event, []string)
 }
 
+// invalidator is implemented by a Collector that remembers its answers.
+type invalidator interface{ Invalidate() }
+
+// calendarChanged tells a caching collector that the agent just wrote an event.
+func (s *Server) calendarChanged() {
+	if c, ok := s.cal.(invalidator); ok {
+		c.Invalidate()
+	}
+}
+
 // EventWriter creates events in the calendar the agent writes to.
 type EventWriter interface {
 	Insert(ctx context.Context, e calendar.NewEvent) (created bool, err error)
@@ -131,6 +141,11 @@ func (s *Server) Handler() http.Handler {
 	v1.HandleFunc("POST /v1/advice", s.postAdvice)
 	v1.HandleFunc("GET /v1/advice", s.getAdvice)
 	v1.HandleFunc("GET /v1/advice/pending", s.getAdvicePending)
+	v1.HandleFunc("GET /v1/time/overview", s.getTimeOverview)
+	v1.HandleFunc("GET /v1/time/category", s.getTimeCategory)
+	v1.HandleFunc("GET /v1/activities", s.getActivities)
+	v1.HandleFunc("PUT /v1/apps/category", s.putAppCategory)
+	v1.HandleFunc("GET /v1/risks/history", s.getRiskHistory)
 	mux.Handle("/v1/", s.rateLimit(s.auth(v1)))
 
 	return mux

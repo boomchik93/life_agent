@@ -58,3 +58,12 @@ func (s *Store) AddCategorizeRun(day string) error {
 		ON CONFLICT(day) DO UPDATE SET runs = runs + 1`, day)
 	return err
 }
+
+// SetUserAppCategory stores the user's own category of an app; it replaces any
+// earlier answer, whatever its origin.
+func (s *Store) SetUserAppCategory(key, category, at string) error {
+	_, err := s.DB.Exec(`INSERT INTO app_category(key, category, origin, confidence, at) VALUES (?,?,'user',1,?)
+		ON CONFLICT(key) DO UPDATE SET category = excluded.category, origin = 'user', confidence = 1, at = excluded.at`,
+		key, category, at)
+	return err
+}

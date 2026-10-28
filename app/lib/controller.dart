@@ -5,11 +5,12 @@ import 'settings.dart';
 
 /// Holds the connection settings and the API client built from them.
 class AppController extends ChangeNotifier {
-  AppController(this.storage, {LifeApi? Function(ConnectionSettings)? apiBuilder})
-      : _apiBuilder = apiBuilder ?? apiFor;
+  AppController(this.storage, {this.apiBuilder});
 
   final AppStorage storage;
-  final LifeApi? Function(ConnectionSettings) _apiBuilder;
+
+  /// Replaceable in tests; the app keeps the screens' answers on the phone.
+  final LifeApi? Function(ConnectionSettings)? apiBuilder;
 
   bool loaded = false;
   ConnectionSettings connection = const ConnectionSettings(baseUrl: '', token: '');
@@ -17,7 +18,7 @@ class AppController extends ChangeNotifier {
 
   Future<void> load() async {
     connection = await storage.loadConnection();
-    api = _apiBuilder(connection);
+    api = await _build(connection);
     loaded = true;
     notifyListeners();
   }
@@ -25,7 +26,12 @@ class AppController extends ChangeNotifier {
   Future<void> saveConnection(ConnectionSettings c) async {
     await storage.saveConnection(c);
     connection = c;
-    api = _apiBuilder(c);
+    api = await _build(c);
     notifyListeners();
+  }
+
+  Future<LifeApi?> _build(ConnectionSettings c) async {
+    final build = apiBuilder;
+    return build != null ? build(c) : cachedApiFor(c);
   }
 }
