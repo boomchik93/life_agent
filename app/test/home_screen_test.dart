@@ -52,6 +52,8 @@ void main() {
   testWidgets('tapping an indicator explains the reason', (t) async {
     final api = FakeApi(week: sampleWeek(sleep: risk('red', reasons: ['в среднем 5,0 ч сна'], metrics: {'avg_sleep_hours': 5})));
     await start(t, api, storage: MemoryStorage(connection: conn, checkinDate: '2026-10-28'));
+    await t.ensureVisible(find.text('Недосып'));
+    await t.pumpAndSettle();
     await t.tap(find.text('Недосып'));
     await t.pumpAndSettle();
     expect(find.text('в среднем 5,0 ч сна'), findsOneWidget);
@@ -126,4 +128,44 @@ void main() {
     await t.pumpAndSettle();
     expect(api.calls.last, 'week 2026-10-26');
   });
+
+  testWidgets('a wide window gets the side menu and the home screen in two columns', (t) async {
+    wideWindow(t);
+    final api = FakeApi(week: sampleWeek(overload: risk('yellow')));
+    await start(t, api, storage: MemoryStorage(connection: conn, checkinDate: '2026-10-28'));
+
+    expect(find.byType(NavigationBar), findsNothing);
+    for (final s in ['Сегодня', 'Неделя', 'Время', 'Цели', 'Совет', 'Настройки']) {
+      expect(find.text(s), findsWidgets);
+    }
+    expect(find.text('Как ты сегодня?'), findsOneWidget);
+    expect(find.text('Разложить задачи'), findsOneWidget);
+    expect(find.text('Перегруз'), findsWidgets);
+    expect(find.text('Enter — отправить, Shift + Enter — новая строка'), findsNothing); // the test runs as Android
+  });
+
+  testWidgets('in a wide window a face opens the check-in with that mood', (t) async {
+    wideWindow(t);
+    final api = FakeApi(week: sampleWeek());
+    await start(t, api, storage: MemoryStorage(connection: conn, checkinDate: '2026-10-28'));
+    await t.tap(find.text('Хорошо'));
+    await t.pumpAndSettle();
+    expect(find.text('Чек-ин'), findsOneWidget);
+    expect(find.bySemanticsLabel('Настроение 4 из 5'), findsOneWidget);
+  });
+
+  testWidgets('the side menu opens a section', (t) async {
+    wideWindow(t);
+    final api = FakeApi(week: sampleWeek());
+    await start(t, api, storage: MemoryStorage(connection: conn, checkinDate: '2026-10-28'));
+    await t.tap(find.text('Неделя').first);
+    await t.pumpAndSettle();
+    expect(find.text('Сетка'), findsOneWidget);
+  });
+}
+
+void wideWindow(WidgetTester t) {
+  t.view.physicalSize = const Size(1440, 900);
+  t.view.devicePixelRatio = 1;
+  addTearDown(t.view.reset);
 }

@@ -25,9 +25,14 @@ class ErrorView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 48, color: Theme.of(context).hintColor),
-            const SizedBox(height: 12),
-            Text(message, textAlign: TextAlign.center),
+            Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(color: Theme.of(context).colorScheme.errorContainer, shape: BoxShape.circle),
+              child: Icon(icon, size: 42, color: Theme.of(context).colorScheme.onErrorContainer),
+            ),
+            const SizedBox(height: 16),
+            Text(message, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 16),
             FilledButton(onPressed: onRetry, child: const Text('Повторить')),
             if (onSettings != null &&

@@ -4,6 +4,7 @@ import '../api.dart';
 import '../background.dart';
 import '../controller.dart';
 import '../health.dart';
+import '../platform.dart';
 import '../usage.dart';
 import '../settings.dart';
 import 'health_screen.dart';
@@ -103,7 +104,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               validator: (v) => (v ?? '').trim().isEmpty ? 'Введи токен' : null,
             ),
             const SizedBox(height: 8),
-            Text('Токен лежит в защищённом хранилище телефона.',
+            Text(isPhone ? 'Токен лежит в защищённом хранилище телефона.' : 'Токен лежит в связке ключей Mac.',
                 style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 20),
             Row(
@@ -158,32 +159,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   builder: (_) => SourcesScreen(
                     api: widget.controller.api!,
                     storage: widget.controller.storage,
-                    usage: widget.usage ?? PluginUsageSource(),
+                    usage: widget.usage ?? deviceUsageSource(),
                     scheduler: widget.scheduler ?? WorkmanagerScheduler(),
                   ),
                 ),
               ),
             ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.favorite),
-              title: const Text('Здоровье'),
-              subtitle: Text(widget.controller.api == null
-                  ? 'Сначала сохрани адрес и токен'
-                  : 'Сон и пульс из Health Connect, фоновая отправка'),
-              trailing: const Icon(Icons.chevron_right),
-              enabled: widget.controller.api != null,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => HealthScreen(
-                    api: widget.controller.api!,
-                    storage: widget.controller.storage,
-                    source: widget.healthSource ?? HealthConnectSource(),
-                    scheduler: widget.scheduler ?? WorkmanagerScheduler(),
+            if (isPhone)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.favorite),
+                title: const Text('Здоровье'),
+                subtitle: Text(widget.controller.api == null
+                    ? 'Сначала сохрани адрес и токен'
+                    : 'Сон и пульс из Health Connect, фоновая отправка'),
+                trailing: const Icon(Icons.chevron_right),
+                enabled: widget.controller.api != null,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => HealthScreen(
+                      api: widget.controller.api!,
+                      storage: widget.controller.storage,
+                      source: widget.healthSource ?? HealthConnectSource(),
+                      scheduler: widget.scheduler ?? WorkmanagerScheduler(),
+                    ),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),

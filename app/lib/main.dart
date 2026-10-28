@@ -6,6 +6,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'background.dart';
 import 'controller.dart';
 import 'notifications.dart';
+import 'platform.dart';
 import 'screens/home_screen.dart';
 import 'settings.dart';
 import 'theme.dart';
@@ -18,7 +19,7 @@ Future<void> main() async {
   await themeMode.load();
   runApp(LifeAgentApp(controller: AppController(storage)..load(), themeMode: themeMode));
   // After the first frame is on its way: the screens do not wait for it.
-  unawaited(_scheduleBackground(storage));
+  if (isPhone) unawaited(_scheduleBackground(storage));
 }
 
 Future<void> _scheduleBackground(AppStorage storage) async {

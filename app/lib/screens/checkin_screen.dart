@@ -15,9 +15,12 @@ double? parseSleepHours(String raw) {
 /// Daily check-in: two taps and an optional number. Pops `true` once saved.
 /// On an error the entered values stay on screen.
 class CheckinScreen extends StatefulWidget {
-  const CheckinScreen({super.key, required this.api});
+  const CheckinScreen({super.key, required this.api, this.initialMood});
 
   final LifeApi api;
+
+  /// The mood already picked on the home screen of a wide window.
+  final int? initialMood;
 
   @override
   State<CheckinScreen> createState() => _CheckinScreenState();
@@ -25,7 +28,7 @@ class CheckinScreen extends StatefulWidget {
 
 class _CheckinScreenState extends State<CheckinScreen> {
   int? _energy;
-  int? _mood;
+  late int? _mood = widget.initialMood;
   final _sleep = TextEditingController();
   String? _sleepError;
   String? _error;

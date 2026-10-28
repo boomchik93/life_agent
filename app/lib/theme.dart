@@ -14,18 +14,35 @@ class Palette {
     required this.onPrimary,
     required this.container,
     required this.onContainer,
+    required this.side,
+    required this.accent,
+    required this.onAccent,
+    required this.accentContainer,
+    required this.onAccentContainer,
+    required this.heroFrom,
+    required this.heroTo,
+    required this.onHero,
     required this.brightness,
   });
 
   final Color bg, surface, surface2, line, text, text2, text3;
+
+  /// The side menu of a wide window.
+  final Color side;
   final Color primary, onPrimary, container, onContainer;
+
+  /// The warm second colour: the check-in, the "now" mark, small highlights.
+  final Color accent, onAccent, accentContainer, onAccentContainer;
+
+  /// The gradient of the main card of a screen; dark in both themes.
+  final Color heroFrom, heroTo, onHero;
   final Brightness brightness;
 
   static const light = Palette(
-    bg: Color(0xFFF3F6F5),
+    bg: Color(0xFFEDF2F0),
     surface: Color(0xFFFFFFFF),
-    surface2: Color(0xFFE8EFED),
-    line: Color(0xFFD9E2DF),
+    surface2: Color(0xFFE2EBE8),
+    line: Color(0xFFD3DEDA),
     text: Color(0xFF12201F),
     text2: Color(0xFF3F5251),
     text3: Color(0xFF5A6C6A),
@@ -33,14 +50,22 @@ class Palette {
     onPrimary: Color(0xFFFFFFFF),
     container: Color(0xFFD5EDEF),
     onContainer: Color(0xFF06464C),
+    side: Color(0xFFE4ECE9),
+    accent: Color(0xFFD9622B),
+    onAccent: Color(0xFFFFFFFF),
+    accentContainer: Color(0xFFFDE4D5),
+    onAccentContainer: Color(0xFF6B2A0C),
+    heroFrom: Color(0xFF0B7A83),
+    heroTo: Color(0xFF0B4A63),
+    onHero: Color(0xFFFFFFFF),
     brightness: Brightness.light,
   );
 
   static const dark = Palette(
-    bg: Color(0xFF0B1415),
-    surface: Color(0xFF122022),
-    surface2: Color(0xFF1B2C2F),
-    line: Color(0xFF26393C),
+    bg: Color(0xFF081112),
+    surface: Color(0xFF132326),
+    surface2: Color(0xFF1D3034),
+    line: Color(0xFF273D41),
     text: Color(0xFFE9F2F1),
     text2: Color(0xFFBBCBC9),
     text3: Color(0xFF93A9A7),
@@ -48,6 +73,14 @@ class Palette {
     onPrimary: Color(0xFF04252A),
     container: Color(0xFF14393E),
     onContainer: Color(0xFFBFF0F4),
+    side: Color(0xFF0C181A),
+    accent: Color(0xFFFF9C6A),
+    onAccent: Color(0xFF3A1505),
+    accentContainer: Color(0xFF45220F),
+    onAccentContainer: Color(0xFFFFD9C4),
+    heroFrom: Color(0xFF0F6A72),
+    heroTo: Color(0xFF113B57),
+    onHero: Color(0xFFF2FBFB),
     brightness: Brightness.dark,
   );
 
@@ -57,6 +90,32 @@ class Palette {
 
 const fontText = 'Onest';
 const fontNumbers = 'Unbounded';
+
+/// The soft shadow under a card. None in the dark theme: there the lighter
+/// surface lifts the card.
+List<BoxShadow>? cardShadow(Palette p) => p.brightness == Brightness.dark
+    ? null
+    : const [
+        BoxShadow(color: Color(0x0F12201F), blurRadius: 2, offset: Offset(0, 1)),
+        BoxShadow(color: Color(0x1412201F), blurRadius: 24, offset: Offset(0, 8)),
+      ];
+
+/// A card: the surface, a thin line and the shadow.
+BoxDecoration cardDecoration(Palette p, {double radius = 24}) => BoxDecoration(
+      color: p.surface,
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(color: p.line),
+      boxShadow: cardShadow(p),
+    );
+
+/// The main card of a screen: the hero gradient with a coloured shadow.
+BoxDecoration heroDecoration(Palette p, {double radius = 28}) => BoxDecoration(
+      gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [p.heroFrom, p.heroTo]),
+      borderRadius: BorderRadius.circular(radius),
+      boxShadow: p.brightness == Brightness.dark
+          ? null
+          : [BoxShadow(color: p.heroTo.withValues(alpha: 0.32), blurRadius: 28, offset: const Offset(0, 12))],
+    );
 
 ThemeData buildTheme(Palette p) {
   final dark = p.brightness == Brightness.dark;
@@ -70,10 +129,10 @@ ThemeData buildTheme(Palette p) {
     onSecondary: p.onPrimary,
     secondaryContainer: p.container,
     onSecondaryContainer: p.onContainer,
-    tertiary: p.primary,
-    onTertiary: p.onPrimary,
-    tertiaryContainer: p.container,
-    onTertiaryContainer: p.onContainer,
+    tertiary: p.accent,
+    onTertiary: p.onAccent,
+    tertiaryContainer: p.accentContainer,
+    onTertiaryContainer: p.onAccentContainer,
     error: dark ? const Color(0xFFEF5350) : const Color(0xFFC62828),
     onError: dark ? const Color(0xFF3B0808) : Colors.white,
     errorContainer: dark ? const Color(0xFF3A1A1B) : const Color(0xFFFBE3E2),
@@ -147,7 +206,8 @@ ThemeData buildTheme(Palette p) {
     cardTheme: CardThemeData(
       color: p.surface,
       surfaceTintColor: Colors.transparent,
-      elevation: 0,
+      elevation: dark ? 0 : 2,
+      shadowColor: const Color(0x4012201F),
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),

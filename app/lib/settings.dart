@@ -54,7 +54,10 @@ abstract class AppStorage {
 
 /// The token goes to the system's secure storage, the rest to ordinary preferences.
 class PlatformStorage implements AppStorage {
-  PlatformStorage({FlutterSecureStorage? secure}) : _secure = secure ?? const FlutterSecureStorage();
+  // On the Mac the token goes to the login keychain: the data protection
+  // keychain needs an app signed by a developer team.
+  PlatformStorage({FlutterSecureStorage? secure})
+      : _secure = secure ?? const FlutterSecureStorage(mOptions: MacOsOptions(usesDataProtectionKeychain: false));
 
   final FlutterSecureStorage _secure;
 

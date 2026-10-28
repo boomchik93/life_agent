@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../api.dart';
 import '../format.dart';
+import '../platform.dart';
 import '../response_cache.dart';
 import '../screen_time.dart';
 import '../theme.dart';
@@ -46,7 +47,7 @@ class _Overview {
 }
 
 class _TimeScreenState extends State<TimeScreen> {
-  late final TimeCtx? _ctx = widget.api is TimeApi ? TimeCtx(api: widget.api, time: widget.api as TimeApi, usage: widget.usage ?? PluginUsageSource(), now: widget.now) : null;
+  late final TimeCtx? _ctx = widget.api is TimeApi ? TimeCtx(api: widget.api, time: widget.api as TimeApi, usage: widget.usage ?? deviceUsageSource(), now: widget.now) : null;
   int _tab = 0; // 0: where the time goes, 1: activities
   TimePeriod _period = TimePeriod.week;
   int _weekShift = 0;
@@ -428,7 +429,7 @@ class _Content extends StatelessWidget {
               Text('Пунктир: в среднем ${(avg / 60).toStringAsFixed(1).replaceAll('.', ',')} ч ${period == TimePeriod.week ? 'в день' : 'в неделю'}.', style: theme.textTheme.bodySmall),
             ],
           ),
-        if (screen == null && !data.appsLater)
+        if (screen == null && !data.appsLater && isPhone)
           TimeCard(
             children: [
               Row(

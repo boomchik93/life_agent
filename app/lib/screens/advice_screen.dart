@@ -7,6 +7,7 @@ import '../api.dart';
 import '../background.dart';
 import '../format.dart';
 import '../notifications.dart';
+import '../platform.dart';
 import '../settings.dart';
 
 /// The history of advice, the button to ask for one, and the two switches:
@@ -181,15 +182,16 @@ class _AdviceScreenState extends State<AdviceScreen> {
               ),
             ),
           const SizedBox(height: 8),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Уведомления о советах'),
-            subtitle: const Text(
-              'Телефон раз в 6 часов спрашивает сервер, есть ли готовый совет.',
+          if (isPhone)
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Уведомления о советах'),
+              subtitle: const Text(
+                'Телефон раз в 6 часов спрашивает сервер, есть ли готовый совет.',
+              ),
+              value: _notify,
+              onChanged: _busy ? null : _setNotify,
             ),
-            value: _notify,
-            onChanged: _busy ? null : _setNotify,
-          ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Отправлять в совет сон и чек-ин'),

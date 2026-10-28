@@ -21,12 +21,10 @@ class WeekView extends StatelessWidget {
         for (final day in week.days)
           Container(
             margin: const EdgeInsets.only(top: 12),
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
-            decoration: BoxDecoration(
-              color: pal.surface,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: pal.line),
-            ),
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+            decoration: day.sameDay(today)
+                ? cardDecoration(pal, radius: 20).copyWith(border: Border.all(color: pal.primary, width: 2))
+                : cardDecoration(pal, radius: 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -65,11 +63,12 @@ class WeekView extends StatelessWidget {
                 ),
                 if (week.eventsOn(day).isEmpty)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(
-                      'Нет событий',
-                      style: theme.textTheme.bodySmall,
-                    ),
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(children: [
+                      Icon(Icons.wb_sunny_outlined, size: 18, color: pal.text3),
+                      const SizedBox(width: 8),
+                      Text('Нет событий', style: theme.textTheme.bodySmall),
+                    ]),
                   )
                 else
                   for (final e in week.eventsOn(day))
@@ -92,16 +91,19 @@ class _EventRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final pal = Palette.of(context);
+    final c = categoryColor(event.category, theme.brightness);
     return Container(
+      margin: const EdgeInsets.only(top: 4),
       decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: pal.line)),
+        color: Color.alphaBlend(c.withValues(alpha: 0.10), pal.surface),
+        borderRadius: BorderRadius.circular(14),
       ),
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
       child: IntrinsicHeight(
         child: Row(
           children: [
             SizedBox(
-              width: 104,
+              width: 98,
               child: Text(
                 eventTime(event, day),
                 style: theme.textTheme.bodyMedium?.copyWith(
@@ -112,11 +114,11 @@ class _EventRow extends StatelessWidget {
               ),
             ),
             Container(
-              width: 4,
+              width: 5,
               constraints: const BoxConstraints(minHeight: 22),
               decoration: BoxDecoration(
-                color: categoryColor(event.category, theme.brightness),
-                borderRadius: BorderRadius.circular(2),
+                color: c,
+                borderRadius: BorderRadius.circular(3),
               ),
             ),
             const SizedBox(width: 12),

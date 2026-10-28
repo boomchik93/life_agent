@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models.dart';
+import 'motion.dart';
 
 Color riskColor(RiskColor c, Brightness b) {
   final dark = b == Brightness.dark;
@@ -55,35 +56,51 @@ class RiskIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = riskColor(risk.color, Theme.of(context).brightness);
+    final surface = Theme.of(context).colorScheme.surfaceContainer;
     return Semantics(
       label: '$title: ${riskLabel(risk.color)}',
       button: true,
       child: Material(
-        color: color.withValues(alpha: 0.14),
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: () => showRiskDetails(context, title, risk),
-          child: Padding(
-            padding: EdgeInsets.all(compact ? 12 : 14),
-            child: compact
-                ? Row(children: [
-                    _disc(color),
-                    const SizedBox(width: 8),
-                    Expanded(child: _texts(context)),
-                  ])
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(crossAxisAlignment: CrossAxisAlignment.end, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                        _disc(color),
-                        if (history != null && history!.isNotEmpty) _Spark(history!),
-                      ]),
-                      const SizedBox(height: 10),
-                      _texts(context),
-                    ],
-                  ),
+        clipBehavior: Clip.antiAlias,
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color.alphaBlend(color.withValues(alpha: 0.26), surface),
+                Color.alphaBlend(color.withValues(alpha: 0.08), surface),
+              ],
+            ),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: () => showRiskDetails(context, title, risk),
+            child: Padding(
+              padding: EdgeInsets.all(compact ? 12 : 14),
+              child: compact
+                  ? Row(children: [
+                      _disc(color),
+                      const SizedBox(width: 8),
+                      Expanded(child: _texts(context)),
+                    ])
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(crossAxisAlignment: CrossAxisAlignment.end, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                          _disc(color),
+                          if (history != null && history!.isNotEmpty) _Spark(history!),
+                        ]),
+                        const SizedBox(height: 10),
+                        _texts(context),
+                      ],
+                    ),
+            ),
           ),
         ),
       ),
@@ -107,11 +124,14 @@ class _Spark extends StatelessWidget {
         height: 28,
         child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
           for (final c in days)
-            Container(
-              width: 5,
-              height: switch (c) { RiskColor.red => 28.0, RiskColor.yellow => 18.0, RiskColor.green => 9.0, _ => 5.0 },
-              margin: const EdgeInsets.only(left: 3),
-              decoration: BoxDecoration(color: riskColor(c, b), borderRadius: BorderRadius.circular(2)),
+            Grow(
+              value: switch (c) { RiskColor.red => 28.0, RiskColor.yellow => 18.0, RiskColor.green => 9.0, _ => 5.0 },
+              builder: (context, h) => Container(
+                width: 5,
+                height: h,
+                margin: const EdgeInsets.only(left: 3),
+                decoration: BoxDecoration(color: riskColor(c, b), borderRadius: BorderRadius.circular(2)),
+              ),
             ),
         ]),
       ),
@@ -121,9 +141,13 @@ class _Spark extends StatelessWidget {
 
 extension on RiskIndicator {
   Widget _disc(Color color) => Container(
-        width: compact ? 32 : 36,
-        height: compact ? 32 : 36,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        width: compact ? 32 : 40,
+        height: compact ? 32 : 40,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          boxShadow: [BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 10, offset: const Offset(0, 3))],
+        ),
         child: Icon(riskIcon(risk.color),
             size: 20,
             color: ThemeData.estimateBrightnessForColor(color) == Brightness.dark ? Colors.white : const Color(0xFF1A1A1A)),

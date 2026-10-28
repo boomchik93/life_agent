@@ -2,6 +2,7 @@ import 'package:life_usage/life_usage.dart';
 
 import 'api.dart';
 import 'models.dart';
+import 'platform.dart';
 
 /// A category with how sure we are of it.
 class Guess {
@@ -237,6 +238,23 @@ abstract class UsageSource {
   Future<void> openAccessSettings();
   Future<List<AppSession>> sessions(DateTime from, DateTime to);
 }
+
+/// A device without the usage history of apps (the Mac): nothing to read.
+class NoUsageSource implements UsageSource {
+  const NoUsageSource();
+
+  @override
+  Future<bool> hasAccess() async => false;
+
+  @override
+  Future<void> openAccessSettings() async {}
+
+  @override
+  Future<List<AppSession>> sessions(DateTime from, DateTime to) async => const [];
+}
+
+/// The usage source of this device.
+UsageSource deviceUsageSource() => isPhone ? PluginUsageSource() : const NoUsageSource();
 
 class PluginUsageSource implements UsageSource {
   @override

@@ -5,6 +5,7 @@ import '../background.dart';
 import '../controller.dart';
 import '../health.dart';
 import '../notifications.dart';
+import '../platform.dart';
 import '../theme.dart';
 import '../theme_mode.dart';
 import '../usage.dart';
@@ -106,27 +107,28 @@ class MoreScreen extends StatelessWidget {
                       (api) => SourcesScreen(
                         api: api,
                         storage: controller.storage,
-                        usage: PluginUsageSource(),
+                        usage: deviceUsageSource(),
                         scheduler: scheduler ?? WorkmanagerScheduler(),
                       ),
                     ),
           ),
-          _Link(
-            icon: Icons.favorite_border,
-            title: 'Здоровье',
-            subtitle: hasApi ? 'Сон и пульс из Health Connect' : 'Сначала сохрани адрес и токен',
-            onTap: !hasApi
-                ? null
-                : () => _push(
-                      context,
-                      (api) => HealthScreen(
-                        api: api,
-                        storage: controller.storage,
-                        source: HealthConnectSource(),
-                        scheduler: scheduler ?? WorkmanagerScheduler(),
+          if (isPhone)
+            _Link(
+              icon: Icons.favorite_border,
+              title: 'Здоровье',
+              subtitle: hasApi ? 'Сон и пульс из Health Connect' : 'Сначала сохрани адрес и токен',
+              onTap: !hasApi
+                  ? null
+                  : () => _push(
+                        context,
+                        (api) => HealthScreen(
+                          api: api,
+                          storage: controller.storage,
+                          source: HealthConnectSource(),
+                          scheduler: scheduler ?? WorkmanagerScheduler(),
+                        ),
                       ),
-                    ),
-          ),
+            ),
           _Link(
             icon: Icons.memory,
             title: 'Модели ИИ',

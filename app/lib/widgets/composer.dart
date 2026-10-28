@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../advice.dart';
 import '../api.dart';
+import '../platform.dart';
 import '../screens/card_screen.dart';
 import '../theme.dart';
 
@@ -11,7 +12,7 @@ const maxPhraseLength = 500;
 /// The input line of the home screen. Voice input is the microphone of the
 /// keyboard. The typed text is never cleared by an error.
 class Composer extends StatefulWidget {
-  const Composer({super.key, required this.api, this.now, this.onOpenModels, this.onSaved, this.onAdvice});
+  const Composer({super.key, required this.api, this.now, this.onOpenModels, this.onSaved, this.onAdvice, this.inline = false});
 
   final LifeApi api;
   final DateTime Function()? now;
@@ -25,6 +26,9 @@ class Composer extends StatefulWidget {
 
   /// Opens the model settings; offered when the models are the problem.
   final VoidCallback? onOpenModels;
+
+  /// A line among the cards of a wide window instead of a sheet at the bottom.
+  final bool inline;
 
   @override
   State<Composer> createState() => _ComposerState();
@@ -90,6 +94,15 @@ class _ComposerState extends State<Composer> {
     }
   }
 
+  /// On a computer Enter sends and Shift + Enter starts a new line.
+  KeyEventResult _onKey(FocusNode node, KeyEvent e) {
+    final enter = e.logicalKey == LogicalKeyboardKey.enter || e.logicalKey == LogicalKeyboardKey.numpadEnter;
+    if (!isDesktop || !enter || e is KeyUpEvent || HardwareKeyboard.instance.isShiftPressed) return KeyEventResult.ignored;
+    if (_text.value.composing.isValid) return KeyEventResult.ignored; // the input method is still composing
+    _send();
+    return KeyEventResult.handled;
+  }
+
   void _cancel() {
     _ticket++;
     setState(() => _busy = false);
@@ -100,21 +113,24 @@ class _ComposerState extends State<Composer> {
     final theme = Theme.of(context);
     final error = _error;
     final pal = Palette.of(context);
+    final inline = widget.inline;
     return Container(
-      decoration: BoxDecoration(
-        color: pal.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        border: Border(top: BorderSide(color: pal.line)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x140A1E1E),
-            blurRadius: 24,
-            offset: Offset(0, -8),
-          ),
-        ],
-      ),
+      decoration: inline
+          ? null
+          : BoxDecoration(
+              color: pal.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              border: Border(top: BorderSide(color: pal.line)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x140A1E1E),
+                  blurRadius: 24,
+                  offset: Offset(0, -8),
+                ),
+              ],
+            ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+        padding: inline ? EdgeInsets.zero : const EdgeInsets.fromLTRB(16, 14, 16, 12),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -164,49 +180,56 @@ class _ComposerState extends State<Composer> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: _text,
-                    focusNode: _focus,
-                    readOnly: _busy,
-                    minLines: 1,
-                    maxLines: 4,
-                    keyboardType: TextInputType.multiline,
-                    textInputAction: TextInputAction.send,
-                    textCapitalization: TextCapitalization.sentences,
-                    inputFormatters: [
-                      LengthLimitingTextInputFormatter(maxPhraseLength),
-                    ],
-                    onSubmitted: (_) => _send(),
-                    style: theme.textTheme.bodyLarge,
-                    decoration: InputDecoration(
-                      hintText: 'КВН в пятницу с 18 до 20',
-                      prefixIcon: Icon(Icons.mic_none, color: pal.text3),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(28),
-                        borderSide: BorderSide.none,
+                  child: Focus(
+                    canRequestFocus: false,
+                    skipTraversal: true,
+                    onKeyEvent: _onKey,
+                    child: TextField(
+                      controller: _text,
+                      focusNode: _focus,
+                      readOnly: _busy,
+                      minLines: 1,
+                      maxLines: 4,
+                      keyboardType: TextInputType.multiline,
+                      textInputAction: TextInputAction.send,
+                      textCapitalization: TextCapitalization.sentences,
+                      inputFormatters: [
+                        LengthLimitingTextInputFormatter(maxPhraseLength),
+                      ],
+                      onSubmitted: (_) => _send(),
+                      style: theme.textTheme.bodyLarge,
+                      decoration: InputDecoration(
+                        hintText: 'КВН в пятницу с 18 до 20',
+                        prefixIcon: Icon(Icons.mic_none, color: pal.text3),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(28),
+                          borderSide: BorderSide.none,
+                        ),
+                        filled: inline ? true : null,
+                        fillColor: inline ? pal.surface : null,
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(28),
+                          borderSide: inline ? BorderSide(color: pal.line, width: 2) : BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(28),
+                          borderSide: BorderSide(color: pal.primary, width: 2),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
+                        suffixIcon: _text.text.isEmpty || _busy
+                            ? null
+                            : IconButton(
+                                tooltip: 'Очистить',
+                                icon: const Icon(Icons.close, size: 20),
+                                onPressed: () {
+                                  _text.clear();
+                                  setState(() => _error = null);
+                                },
+                              ),
                       ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(28),
-                        borderSide: BorderSide.none,
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(28),
-                        borderSide: BorderSide(color: pal.primary, width: 2),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
-                      ),
-                      suffixIcon: _text.text.isEmpty || _busy
-                          ? null
-                          : IconButton(
-                              tooltip: 'Очистить',
-                              icon: const Icon(Icons.close, size: 20),
-                              onPressed: () {
-                                _text.clear();
-                                setState(() => _error = null);
-                              },
-                            ),
                     ),
                   ),
                 ),
@@ -229,7 +252,7 @@ class _ComposerState extends State<Composer> {
             Padding(
               padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
               child: Text(
-                'Событие или задача с дедлайном. Можно надиктовать.',
+                isDesktop ? 'Enter — отправить, Shift + Enter — новая строка' : 'Событие или задача с дедлайном. Можно надиктовать.',
                 style: theme.textTheme.bodySmall,
               ),
             ),

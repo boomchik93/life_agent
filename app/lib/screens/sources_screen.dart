@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../api.dart';
 import '../background.dart';
+import '../platform.dart';
 import '../settings.dart';
 import '../sources.dart';
 import '../usage.dart';
@@ -208,7 +209,8 @@ class _SourcesScreenState extends State<SourcesScreen> with WidgetsBindingObserv
                     const Text('Агент считает время по категориям сам, ничего отмечать не нужно. '
                         'На сервер уходят только дневные суммы: без названий окон, адресов и заголовков.'),
                     const SizedBox(height: 8),
-                    for (final s in sources) _sourceTile(s, theme),
+                    for (final s in sources)
+                      if (isPhone || s.source != 'android_usage') _sourceTile(s, theme),
                     const Divider(height: 32),
                     Text('Город для погоды', style: theme.textTheme.titleSmall),
                     const SizedBox(height: 8),
@@ -227,23 +229,25 @@ class _SourcesScreenState extends State<SourcesScreen> with WidgetsBindingObserv
                     const SizedBox(height: 4),
                     Text('Погода нужна, чтобы ставить спорт в сухое светлое время. Название города уходит в Open-Meteo.',
                         style: theme.textTheme.bodySmall),
-                    const Divider(height: 32),
-                    Text('Доступ телефона', style: theme.textTheme.titleSmall),
-                    const SizedBox(height: 6),
-                    Text(_access
-                        ? 'Доступ к истории использования выдан.'
-                        : 'Чтобы считать время в приложениях, выдай доступ вручную, один раз: кнопка ниже → '
-                            'найди «Жизнь» → включи «Разрешить доступ». Android не даёт сделать это из приложения.'),
-                    const SizedBox(height: 8),
-                    Wrap(spacing: 8, children: [
-                      if (!_access)
-                        FilledButton(
-                          onPressed: _busy ? null : widget.usage.openAccessSettings,
-                          child: const Text('Открыть настройки доступа'),
-                        ),
-                      if (_access)
-                        OutlinedButton(onPressed: _busy ? null : _syncPhone, child: const Text('Отправить сейчас')),
-                    ]),
+                    if (isPhone) ...[
+                      const Divider(height: 32),
+                      Text('Доступ телефона', style: theme.textTheme.titleSmall),
+                      const SizedBox(height: 6),
+                      Text(_access
+                          ? 'Доступ к истории использования выдан.'
+                          : 'Чтобы считать время в приложениях, выдай доступ вручную, один раз: кнопка ниже → '
+                              'найди «Жизнь» → включи «Разрешить доступ». Android не даёт сделать это из приложения.'),
+                      const SizedBox(height: 8),
+                      Wrap(spacing: 8, children: [
+                        if (!_access)
+                          FilledButton(
+                            onPressed: _busy ? null : widget.usage.openAccessSettings,
+                            child: const Text('Открыть настройки доступа'),
+                          ),
+                        if (_access)
+                          OutlinedButton(onPressed: _busy ? null : _syncPhone, child: const Text('Отправить сейчас')),
+                      ]),
+                    ],
                     const Divider(height: 32),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,

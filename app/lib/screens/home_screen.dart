@@ -14,10 +14,13 @@ import 'more_screen.dart';
 import 'time_screen.dart';
 import '../widgets/loadable.dart';
 import '../widgets/composer.dart';
+import '../widgets/decor.dart';
+import '../widgets/motion.dart';
 import '../widgets/risk_indicator.dart';
 import '../widgets/week_view.dart';
 import 'advice_screen.dart';
 import 'checkin_screen.dart';
+import 'desktop_home.dart';
 import 'models_screen.dart';
 import 'plan_screen.dart';
 import 'review_screen.dart';
@@ -46,6 +49,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _checkinDone = true; // hidden until the stored date is read
   int _tab = 0;
   final Set<int> _opened = {0};
+  int _deskTab = 0; // the section of the side menu in a wide window
+  final Set<int> _deskOpened = {0};
   final ValueNotifier<int> _calendarTick = ValueNotifier(0);
 
   AppController get _c => widget.controller;
@@ -111,11 +116,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return _load();
   }
 
-  Future<void> _openCheckin() async {
+  /// [mood] was already picked on the home screen of a wide window.
+  Future<void> _openCheckin({int? mood}) async {
     final api = _c.api;
     if (api == null) return;
     final saved = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => CheckinScreen(api: api)),
+      MaterialPageRoute(builder: (_) => CheckinScreen(api: api, initialMood: mood)),
     );
     if (saved == true) {
       await _c.storage.saveCheckinDate(_today.ymd);
@@ -195,6 +201,66 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, c) => _c.api != null && c.maxWidth >= desktopFrom ? _desktop() : _phone(),
+    );
+  }
+
+  void _selectDesk(int i) => setState(() {
+        _deskTab = i;
+        _deskOpened.add(i);
+      });
+
+  /// A wide window: the side menu and the section on the right. The sections
+  /// stay alive once opened, as the tabs of the phone do.
+  Widget _desktop() {
+    final api = _c.api!;
+    final id = identityHashCode(api);
+    final themeMode = widget.themeMode ?? ThemeModeController();
+    Widget narrow(Widget w) => Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 1040), child: w));
+    Widget page(int i) {
+      if (i != _deskTab && !_deskOpened.contains(i)) return const SizedBox.shrink();
+      final key = ValueKey('d${i}_$id');
+      return switch (i) {
+        0 => DesktopToday(
+            key: key,
+            api: api,
+            week: _week,
+            history: _history,
+            greeting: _greeting(),
+            today: _today,
+            checkinDone: _checkinDone,
+            onCheckin: (mood) => _openCheckin(mood: mood),
+            onPlan: _openPlan,
+            onReload: _reload,
+            onSettings: _openSettings,
+            onModels: _openModels,
+            onAdvice: () => _openAdvice(askNow: true),
+            now: widget.now,
+          ),
+        1 => narrow(WeekScreen(key: key, api: api, now: widget.now, reload: _calendarTick)),
+        2 => narrow(TimeScreen(key: key, api: api, now: widget.now, reload: _calendarTick)),
+        3 => narrow(ReviewScreen(key: key, api: api)),
+        4 => narrow(AdviceScreen(
+            key: key,
+            api: api,
+            storage: _c.storage,
+            scheduler: widget.scheduler ?? WorkmanagerScheduler(),
+            notifier: widget.notifier ?? LocalNotifier(),
+          )),
+        _ => narrow(MoreScreen(controller: _c, themeMode: themeMode, scheduler: widget.scheduler, notifier: widget.notifier)),
+      };
+    }
+
+    return Scaffold(
+      body: Row(children: [
+        DesktopSidebar(selected: _deskTab, onSelect: _selectDesk, themeMode: themeMode, onModels: _openModels),
+        Expanded(child: IndexedStack(index: _deskTab, children: [for (var i = 0; i <= desktopSettings; i++) page(i)])),
+      ]),
+    );
+  }
+
+  Widget _phone() {
     return Scaffold(
       body: SafeArea(bottom: false, child: _tabBody()),
       bottomNavigationBar: _c.api == null
@@ -226,6 +292,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           padding: const EdgeInsets.fromLTRB(16, 20, 8, 0),
           child: Row(
             children: [
+              GreetingBadge(hour: (widget.now?.call() ?? DateTime.now()).hour, size: 48),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -258,15 +326,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _body() {
     if (_c.api == null) {
       return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Укажи адрес сервера и токен.', textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              FilledButton(onPressed: _openSettings, child: const Text('Настройки')),
-            ],
+        child: Appear(
+          child: EmptyState(
+            icon: Icons.dns_outlined,
+            title: 'Подключи сервер',
+            text: 'Укажи адрес сервера и токен.',
+            action: FilledButton.icon(onPressed: _openSettings, icon: const Icon(Icons.tune), label: const Text('Настройки')),
           ),
         ),
       );
@@ -281,10 +346,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
             children: [
-              NextCard(week: week, now: _today),
-              if (!_checkinDone) _CheckinCard(onTap: _openCheckin),
+              Appear(child: NextCard(week: week, now: _today)),
+              if (!_checkinDone) Appear(index: 1, child: _CheckinCard(onTap: _openCheckin)),
               if (week.warnings.isNotEmpty) _Warnings(week.warnings),
-              ListenableBuilder(
+              Appear(index: 2, child: ListenableBuilder(
                 listenable: _history,
                 builder: (context, _) {
                   final days = _history.data;
@@ -315,9 +380,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     RiskGrid(risks: week.risks, history: spark),
                   ]);
                 },
-              ),
+              )),
               Padding(
-                padding: const EdgeInsets.only(top: 20),
+                padding: const EdgeInsets.only(top: 24),
                 child: Wrap(
                   alignment: WrapAlignment.spaceBetween,
                   crossAxisAlignment: WrapCrossAlignment.end,
@@ -328,7 +393,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ],
                 ),
               ),
-              WeekView(week: week, today: _today),
+              Appear(index: 3, child: WeekView(week: week, today: _today)),
             ],
           ),
         );
@@ -349,7 +414,7 @@ class _CheckinCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Material(
-        color: pal.container,
+        color: pal.accentContainer,
         borderRadius: BorderRadius.circular(24),
         child: InkWell(
           borderRadius: BorderRadius.circular(24),
@@ -358,19 +423,23 @@ class _CheckinCard extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             child: Row(children: [
               Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(color: pal.primary, shape: BoxShape.circle),
-                child: Icon(Icons.favorite_border, color: pal.onPrimary),
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: pal.accent,
+                  shape: BoxShape.circle,
+                  boxShadow: [BoxShadow(color: pal.accent.withValues(alpha: 0.4), blurRadius: 12, offset: const Offset(0, 4))],
+                ),
+                child: Icon(Icons.favorite_rounded, color: pal.onAccent),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Как ты сегодня?', style: theme.textTheme.titleLarge?.copyWith(color: pal.onContainer)),
-                  Text('Чек-ин займёт 5 секунд', style: theme.textTheme.bodyMedium?.copyWith(color: pal.onContainer)),
+                  Text('Как ты сегодня?', style: theme.textTheme.titleLarge?.copyWith(color: pal.onAccentContainer)),
+                  Text('Чек-ин займёт 5 секунд', style: theme.textTheme.bodyMedium?.copyWith(color: pal.onAccentContainer)),
                 ]),
               ),
-              Icon(Icons.chevron_right, color: pal.onContainer),
+              Icon(Icons.chevron_right, color: pal.onAccentContainer),
             ]),
           ),
         ),
@@ -453,9 +522,14 @@ class _WeekStrip extends StatelessWidget {
                     margin: const EdgeInsets.symmetric(horizontal: 2),
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
-                      color: isToday ? pal.container : pal.surface,
+                      color: isToday
+                          ? pal.container
+                          : color == null
+                              ? pal.surface
+                              : Color.alphaBlend(color.withValues(alpha: 0.14), pal.surface),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: isToday ? pal.primary : pal.line, width: isToday ? 2 : 1),
+                      border: Border.all(color: isToday ? pal.primary : color?.withValues(alpha: 0.35) ?? pal.line, width: isToday ? 2 : 1),
+                      boxShadow: isToday ? [BoxShadow(color: pal.primary.withValues(alpha: 0.25), blurRadius: 12, offset: const Offset(0, 4))] : null,
                     ),
                     child: Column(children: [
                       Text(weekdayShort[i][0].toUpperCase() + weekdayShort[i].substring(1), style: theme.textTheme.bodySmall),
