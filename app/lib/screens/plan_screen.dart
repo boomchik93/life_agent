@@ -279,7 +279,15 @@ class _ChunkTile extends StatelessWidget {
       child: ListTile(
         contentPadding: EdgeInsets.zero,
         dense: true,
-        leading: Text('${chunk.start.hm}–${chunk.end.hm}', style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()])),
+        leading: SizedBox(
+          width: 112,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text('${chunk.start.hm}–${chunk.end.hm}',
+                style: const TextStyle(fontWeight: FontWeight.w600, fontFeatures: [FontFeature.tabularFigures()])),
+          ),
+        ),
         title: Text(chunk.title),
         subtitle: Text('${categoryNames[chunk.category] ?? chunk.category}, ${minutesLabel(chunk.minutes)}'),
       ),

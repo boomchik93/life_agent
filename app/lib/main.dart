@@ -6,6 +6,7 @@ import 'controller.dart';
 import 'notifications.dart';
 import 'screens/home_screen.dart';
 import 'settings.dart';
+import 'theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,8 +34,8 @@ class LifeAgentApp extends StatelessWidget {
       locale: const Locale('ru'),
       supportedLocales: const [Locale('ru')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
-      theme: ThemeData(colorSchemeSeed: Colors.teal, useMaterial3: true),
-      darkTheme: ThemeData(colorSchemeSeed: Colors.teal, useMaterial3: true, brightness: Brightness.dark),
+      theme: buildTheme(Palette.light),
+      darkTheme: buildTheme(Palette.dark),
       home: HomeRoot(controller: controller),
     );
   }

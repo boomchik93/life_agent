@@ -54,31 +54,42 @@ class RiskIndicator extends StatelessWidget {
     return Semantics(
       label: '$title: ${riskLabel(risk.color)}',
       button: true,
-      child: Card(
-        margin: EdgeInsets.zero,
+      child: Material(
         color: color.withValues(alpha: 0.14),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: color, width: 1.5),
-        ),
+        borderRadius: BorderRadius.circular(20),
         child: InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(20),
           onTap: () => showRiskDetails(context, title, risk),
           child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(riskIcon(risk.color), color: color, size: 32),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(title, style: Theme.of(context).textTheme.titleSmall),
-                      Text(riskLabel(risk.color),
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: color)),
-                    ],
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    riskIcon(risk.color),
+                    size: 20,
+                    color:
+                        ThemeData.estimateBrightnessForColor(color) ==
+                            Brightness.dark
+                        ? Colors.white
+                        : const Color(0xFF1A1A1A),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(title, style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 2),
+                Text(
+                  riskLabel(risk.color),
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: _textOn(risk.color, Theme.of(context).brightness),
                   ),
                 ),
               ],
@@ -88,6 +99,18 @@ class RiskIndicator extends StatelessWidget {
       ),
     );
   }
+}
+
+// Darker (light theme) or lighter (dark theme) shade of the risk colour for text.
+Color _textOn(RiskColor c, Brightness b) {
+  final dark = b == Brightness.dark;
+  return switch (c) {
+    RiskColor.green => dark ? const Color(0xFFA5DCA9) : const Color(0xFF1B5E20),
+    RiskColor.yellow =>
+      dark ? const Color(0xFFFFDD73) : const Color(0xFF6A4600),
+    RiskColor.red => dark ? const Color(0xFFFFA6A3) : const Color(0xFF9B1C1C),
+    RiskColor.gray => dark ? const Color(0xFFBAC6C4) : const Color(0xFF4B5654),
+  };
 }
 
 void showRiskDetails(BuildContext context, String title, Risk risk) {
