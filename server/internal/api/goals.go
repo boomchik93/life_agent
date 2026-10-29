@@ -283,7 +283,7 @@ func goalCategory(goal string) load.Category {
 	case "study":
 		return load.Study
 	case "sport":
-		return load.Hobby
+		return load.Sport
 	}
 	return load.Work // career and work
 }

@@ -275,7 +275,7 @@ class _UnassignedScreenState extends State<UnassignedScreen> {
               ]),
               const SizedBox(height: 12),
               Wrap(spacing: 8, runSpacing: 8, children: [
-                for (final c in timeCategories.where((c) => c != 'chores' && c != 'rest'))
+                for (final c in appTimeCategories)
                   CatChip(
                     category: c,
                     selected: _chosen[a.pkg] == c,

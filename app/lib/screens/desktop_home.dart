@@ -531,6 +531,7 @@ class _WeekLoad extends StatelessWidget {
 const _categoryNames = {
   'study': 'Учёба',
   'work': 'Работа',
+  'sport': 'Спорт',
   'hobby': 'Хобби',
   'rest': 'Отдых',
   'chores': 'Дела',

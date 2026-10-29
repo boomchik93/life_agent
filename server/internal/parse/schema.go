@@ -17,7 +17,7 @@ var Schema = json.RawMessage(`{
     "duration_min": {"type": ["integer", "null"]},
     "deadline": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/date"}]},
     "recurrence": {"type": ["string", "null"]},
-    "category_guess": {"type": "string", "enum": ["study", "work", "hobby", "rest", "chores", "other"]},
+    "category_guess": {"type": "string", "enum": ["study", "work", "sport", "hobby", "rest", "chores", "other"]},
     "missing": {"type": "array", "items": {"type": "string", "enum": ["date", "time_from", "time_to", "duration_min", "deadline"]}}
   },
   "$defs": {

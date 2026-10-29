@@ -117,7 +117,7 @@ func (s *Server) patchItem(w http.ResponseWriter, r *http.Request) {
 type planContext struct {
 	in    plan.Input
 	items map[int64]store.Item
-	cats  load.CalendarCategories
+	cats  load.EventCategories
 	// events are the calendar events of the week, for the risk colours.
 	events []calendar.Event
 	// goals are the goal blocks of this plan (negative ids), skipped the goals
@@ -191,7 +191,7 @@ func (s *Server) planContext(ctx context.Context, day time.Time, exceptKey strin
 	return pc, nil
 }
 
-func (s *Server) planSettings() (plan.Params, load.Thresholds, load.CalendarCategories, error) {
+func (s *Server) planSettings() (plan.Params, load.Thresholds, load.EventCategories, error) {
 	th, cats, err := s.loadSettings()
 	if err != nil {
 		return plan.Params{}, th, cats, err

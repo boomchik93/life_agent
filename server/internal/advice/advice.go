@@ -135,7 +135,7 @@ var colorWords = map[load.Color]string{
 }
 
 var categoryWords = map[load.Category]string{
-	load.Study: "учёба", load.Work: "работа", load.Hobby: "хобби", load.Rest: "отдых",
+	load.Study: "учёба", load.Work: "работа", load.Sport: "спорт", load.Hobby: "хобби", load.Rest: "отдых",
 	load.Chores: "дела", load.Other: "другое",
 }
 

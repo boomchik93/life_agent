@@ -153,7 +153,7 @@ func (s *Server) postItems(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "Название: от 1 до 200 символов.")
 		return
 	case !load.Category(in.Category).Valid():
-		writeError(w, http.StatusBadRequest, "category must be one of study, work, hobby, rest, chores, other")
+		writeError(w, http.StatusBadRequest, "category must be one of study, work, sport, hobby, rest, chores, other")
 		return
 	case in.DurationMin < 5 || in.DurationMin > 7*24*60:
 		writeError(w, http.StatusBadRequest, "Длительность: от 5 минут до недели.")

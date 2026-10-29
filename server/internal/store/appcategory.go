@@ -46,6 +46,16 @@ func (s *Store) PutAppCategory(a AppCategory) error {
 	return err
 }
 
+// PutDictionaryCategory stores the dictionary's answer. It replaces a guess of
+// the model or an older dictionary entry, never the user's own choice.
+func (s *Store) PutDictionaryCategory(a AppCategory) error {
+	_, err := s.DB.Exec(`INSERT INTO app_category(key, category, origin, confidence, at) VALUES (?,?,?,?,?)
+		ON CONFLICT(key) DO UPDATE SET category = excluded.category, origin = excluded.origin,
+		  confidence = excluded.confidence, at = excluded.at
+		WHERE app_category.origin <> 'user'`, a.Key, a.Category, a.Origin, a.Confidence, a.At)
+	return err
+}
+
 // CategorizeRuns returns the model calls the categorization used on a day.
 func (s *Store) CategorizeRuns(day string) (int, error) {
 	var n int

@@ -363,3 +363,27 @@ func TestCalendarCategories(t *testing.T) {
 		t.Error("accepted unknown category")
 	}
 }
+
+func TestEventCategories(t *testing.T) {
+	c := EventCategories{
+		Calendars: CalendarCategories{"Работа": Work},
+		Memory:    map[string]Category{"тренировка": Hobby},
+	}
+	tests := []struct {
+		source, calendar, title string
+		want                    Category
+	}{
+		{"google", "Личный", "Тренировка в 19:00", Hobby}, // the user's choice, by title
+		{"google", "Работа", "Обед", Work},                // the mapped calendar
+		{"google", "Личный", "Футбол", Sport},             // the words of the title
+		{"ics", "Пары", "Физическая культура", Sport},
+		{"ics", "Пары", "Матан", Study},
+		{"ics", "Пары", "Непонятное", Study}, // the default of the class schedule
+		{"google", "Личный", "Встреча", Other},
+	}
+	for _, tt := range tests {
+		if got := c.Of(tt.source, tt.calendar, tt.title); got != tt.want {
+			t.Errorf("Of(%s, %s, %q) = %s, want %s", tt.source, tt.calendar, tt.title, got, tt.want)
+		}
+	}
+}

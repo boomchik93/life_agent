@@ -3,6 +3,7 @@ import 'models.dart';
 const categoryNames = {
   'study': 'Учёба',
   'work': 'Работа',
+  'sport': 'Спорт',
   'hobby': 'Хобби',
   'rest': 'Отдых',
   'chores': 'Дела',

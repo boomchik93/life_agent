@@ -61,7 +61,7 @@ func Decode(raw string, now time.Time, loc *time.Location) (Extract, error) {
 		return bad("title должен быть непустым и коротким")
 	}
 	if !load.Category(e.CategoryGuess).Valid() {
-		return bad("category_guess должен быть одним из study, work, hobby, rest, chores, other")
+		return bad("category_guess должен быть одним из study, work, sport, hobby, rest, chores, other")
 	}
 	for _, m := range e.Missing {
 		if !knownMissing[m] {

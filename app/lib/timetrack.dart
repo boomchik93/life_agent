@@ -12,7 +12,11 @@ abstract interface class TimeApi {
 }
 
 /// The categories of the tab: the ones of the calendar.
-const timeCategories = ['study', 'work', 'hobby', 'rest', 'chores', 'other'];
+const timeCategories = ['study', 'work', 'sport', 'hobby', 'rest', 'chores', 'other'];
+
+/// The categories an app can be put into: an app category stands behind each
+/// (rest is leisure, other is social); hobby and chores have none.
+const appTimeCategories = ['study', 'work', 'sport', 'rest', 'other'];
 
 const timeCategoryNames = {
   'study': 'Учёба',

@@ -144,11 +144,15 @@ void main() {
   test('app categories map to the categories of the tab', () {
     expect(timeCategoryOf('study'), 'study');
     expect(timeCategoryOf('career'), 'work');
-    expect(timeCategoryOf('leisure'), 'hobby');
+    expect(timeCategoryOf('leisure'), 'rest');
+    expect(timeCategoryOf('sport'), 'sport');
     expect(timeCategoryOf('social'), 'other');
     expect(timeCategoryOf('unknown'), isNull);
     expect(appCategoryOf('study'), 'study');
-    expect(timeCategoryOf(appCategoryOf('hobby')), 'hobby');
+    // Every choice offered for an app comes back as itself.
+    for (final c in appTimeCategories) {
+      expect(timeCategoryOf(appCategoryOf(c)), c);
+    }
   });
 
   test('screen time: the server answer wins, the system category is the fallback, the rest has no category', () async {
@@ -163,7 +167,7 @@ void main() {
     final names = <String, NameCategory>{};
     final st = await loadScreenTime(usage: usage, api: api, from: DateTime(2026, 10, 26), to: DateTime(2026, 11, 2), names: names, compare: false);
     expect(st.minutesOf('study'), 60);
-    expect(st.minutesOf('hobby'), 30); // from the system's category, the server did not know
+    expect(st.minutesOf('rest'), 30); // from the system's category, the server did not know
     expect(st.unassigned.map((a) => a.pkg), ['com.mystery']);
     expect(st.unassignedMinutes, 20);
     // The second call asks about nothing it already knows.

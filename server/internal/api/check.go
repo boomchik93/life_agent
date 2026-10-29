@@ -63,7 +63,7 @@ func (s *Server) parseSlot(body []byte) (slot, string) {
 	}
 	cat := load.Category(in.Category)
 	if !cat.Valid() {
-		return slot{}, "category must be one of study, work, hobby, rest, chores, other"
+		return slot{}, "category must be one of study, work, sport, hobby, rest, chores, other"
 	}
 	sl := slot{title: title, start: start.In(s.loc), end: end.In(s.loc), category: cat,
 		confirmed: in.CategoryConfirmed, accepted: in.Confirmed}

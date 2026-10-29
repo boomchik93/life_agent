@@ -24,7 +24,7 @@ const (
 )
 
 // designCategories are the categories of the "Время" tab.
-var designCategories = []string{"study", "work", "hobby", "rest", "chores", "other"}
+var designCategories = []string{"study", "work", "sport", "hobby", "rest", "chores", "other"}
 
 func validDesignCategory(c string) bool {
 	for _, d := range designCategories {
@@ -36,15 +36,18 @@ func validDesignCategory(c string) bool {
 }
 
 // screenCategory maps the category of an app to a category of the tab.
-// Unknown and sleep say nothing about what the time was spent on.
+// Video, music and games on a screen are rest, not a hobby. Unknown and sleep
+// say nothing about what the time was spent on.
 func screenCategory(c string) (string, bool) {
 	switch c {
 	case activity.Study:
 		return "study", true
 	case activity.Work, activity.Career:
 		return "work", true
-	case activity.Leisure, activity.Sport:
-		return "hobby", true
+	case activity.Sport:
+		return "sport", true
+	case activity.Leisure:
+		return "rest", true
 	case activity.Social:
 		return "other", true
 	}
@@ -255,7 +258,7 @@ type categoryResponse struct {
 func (s *Server) getTimeCategory(w http.ResponseWriter, r *http.Request) {
 	cat := r.URL.Query().Get("category")
 	if !validDesignCategory(cat) {
-		writeError(w, http.StatusBadRequest, "category must be one of study, work, hobby, rest, chores, other")
+		writeError(w, http.StatusBadRequest, "category must be one of study, work, sport, hobby, rest, chores, other")
 		return
 	}
 	from, to, ok := s.parseRange(r)
@@ -362,7 +365,7 @@ type activityView struct {
 }
 
 // calendarCategoryOf: the calendar categories that count as a goal.
-var calendarCategoryOf = map[string]string{"study": "study", "work": "work"}
+var calendarCategoryOf = map[string]string{"study": "study", "work": "work", "sport": "sport"}
 
 // getActivities follows the four goals by themselves. A day's minutes are
 // the larger of two readings: what the screens and the watch saw (apps by

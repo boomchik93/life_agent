@@ -35,6 +35,8 @@ func ContextCategory(c string) string {
 		return "study"
 	case "work":
 		return "work"
+	case "sport":
+		return "sport"
 	case "hobby", "rest":
 		return "leisure"
 	}

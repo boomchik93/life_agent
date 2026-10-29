@@ -75,7 +75,7 @@
     "deadline": null,
     "recurrence": "FREQ=WEEKLY;BYDAY=FR",
     "missing": [],
-    "category": "hobby"
+    "category": "sport"
    }
   },
   {
@@ -90,7 +90,7 @@
     "deadline": null,
     "recurrence": null,
     "missing": [],
-    "category": "hobby"
+    "category": "sport"
    }
   },
   {
@@ -105,7 +105,7 @@
     "deadline": null,
     "recurrence": null,
     "missing": [],
-    "category": "hobby"
+    "category": "sport"
    }
   },
   {
@@ -120,7 +120,7 @@
     "deadline": null,
     "recurrence": null,
     "missing": [],
-    "category": "hobby"
+    "category": "sport"
    }
   },
   {
@@ -182,7 +182,7 @@
     "deadline": null,
     "recurrence": null,
     "missing": [],
-    "category": "rest"
+    "category": "sport"
    }
   },
   {
@@ -276,7 +276,7 @@
     "missing": [
      "time_to"
     ],
-    "category": "hobby"
+    "category": "rest"
    }
   },
   {
@@ -387,7 +387,7 @@
     "deadline": null,
     "recurrence": null,
     "missing": [],
-    "category": "hobby"
+    "category": "sport"
    }
   },
   {
@@ -439,7 +439,7 @@
      "time_from",
      "time_to"
     ],
-    "category": "hobby"
+    "category": "rest"
    }
   },
   {

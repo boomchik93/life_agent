@@ -194,7 +194,7 @@ class _TimeScreenState extends State<TimeScreen> {
   }
 }
 
-const _order = ['study', 'work', 'hobby', 'chores', 'rest', 'other'];
+const _order = ['study', 'work', 'sport', 'hobby', 'chores', 'rest', 'other'];
 
 class _Content extends StatelessWidget {
   const _Content({required this.ctx, required this.data, required this.period, required this.weekShift, required this.from, required this.onReload});

@@ -24,6 +24,7 @@ type Category string
 const (
 	Study  Category = "study"
 	Work   Category = "work"
+	Sport  Category = "sport"
 	Hobby  Category = "hobby"
 	Rest   Category = "rest"
 	Chores Category = "chores"
@@ -32,7 +33,7 @@ const (
 
 func (c Category) Valid() bool {
 	switch c {
-	case Study, Work, Hobby, Rest, Chores, Other:
+	case Study, Work, Sport, Hobby, Rest, Chores, Other:
 		return true
 	}
 	return false
@@ -68,7 +69,7 @@ type Input struct {
 	// Sleep is measured sleep. For a day that has both, it wins over the
 	// hours typed into the check-in; a day with only one of them uses that one.
 	Sleep []SleepDay
-	// RestTracked reports that some calendar is mapped to hobby or rest. Without
+	// RestTracked reports that some calendar is mapped to sport, hobby or rest. Without
 	// it a week with zero rest hours says nothing: rest may simply not be in the calendar.
 	RestTracked bool
 	T           Thresholds
@@ -314,7 +315,8 @@ func assessNoRest(in Input) Risk {
 	}
 	t := in.T
 
-	rest := spans(in.Events, in.From, in.To, Hobby, Rest)
+	// Sport counts too: before it had its own category it was hobby.
+	rest := spans(in.Events, in.From, in.To, Sport, Hobby, Rest)
 	if in.RestTracked || len(rest) > 0 {
 		h := total(rest).Hours()
 		r.Metrics["rest_hours"] = round2(h)
@@ -322,7 +324,7 @@ func assessNoRest(in Input) Risk {
 			fmt.Sprintf("отдых и развлечения за неделю %s (порог: жёлтый ниже %s, красный ниже %s)",
 				hours(h), hours(t.RestWeekYellowBelow), hours(t.RestWeekRedBelow)))
 	} else {
-		r.Reasons = append(r.Reasons, "часы отдыха неизвестны: ни один календарь не отнесён к категориям hobby и rest")
+		r.Reasons = append(r.Reasons, "часы отдыха неизвестны: ни один календарь не отнесён к категориям sport, hobby и rest")
 	}
 
 	free := 0

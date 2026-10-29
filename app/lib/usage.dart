@@ -33,6 +33,7 @@ Guess? androidMetaGuess(int androidCategory) => switch (androidCategory) {
 String? contextCategory(String eventCategory) => switch (eventCategory) {
       'study' => 'study',
       'work' => 'work',
+      'sport' => 'sport',
       'hobby' || 'rest' => 'leisure',
       _ => null,
     };

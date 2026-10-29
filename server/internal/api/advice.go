@@ -37,16 +37,16 @@ func (s *Server) adviceSettings() (advice.Settings, error) {
 }
 
 // weekSummary reads the current week and reduces it to what the advice needs.
-func (s *Server) weekSummary(ctx context.Context) (events []calendar.Event, cats load.CalendarCategories, a load.Assessment, err error) {
+func (s *Server) weekSummary(ctx context.Context) (events []calendar.Event, cats load.EventCategories, a load.Assessment, err error) {
 	from, to := calendar.WeekBounds(s.now(), s.loc)
 	var warnings []string
 	events, warnings = s.cal.Collect(ctx, from, to)
 	if len(warnings) > 0 && len(events) == 0 {
-		return nil, nil, a, errCalendars
+		return nil, load.EventCategories{}, a, errCalendars
 	}
 	_, cats, err = s.loadSettings()
 	if err != nil {
-		return nil, nil, a, err
+		return nil, load.EventCategories{}, a, err
 	}
 	a, err = s.assess(events, from, to)
 	return events, cats, a, err
@@ -54,7 +54,7 @@ func (s *Server) weekSummary(ctx context.Context) (events []calendar.Event, cats
 
 // adviceInput builds the model's view of the week. Sleep and check-in numbers
 // join it only when the user allowed that.
-func (s *Server) adviceInput(events []calendar.Event, cats load.CalendarCategories, a load.Assessment, reasons []string, set advice.Settings) (advice.Input, int) {
+func (s *Server) adviceInput(events []calendar.Event, cats load.EventCategories, a load.Assessment, reasons []string, set advice.Settings) (advice.Input, int) {
 	in := advice.Input{
 		Reasons:         reasons,
 		HoursByCategory: map[load.Category]float64{},

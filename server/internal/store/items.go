@@ -66,6 +66,24 @@ func (s *Store) CategoryOf(name string) (category string, ok bool, err error) {
 	return category, err == nil, err
 }
 
+// CategoryMemory returns every remembered title with its category.
+func (s *Store) CategoryMemory() (map[string]string, error) {
+	rows, err := s.DB.Query(`SELECT name, category FROM category_memory`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var name, cat string
+		if err := rows.Scan(&name, &cat); err != nil {
+			return nil, err
+		}
+		out[name] = cat
+	}
+	return out, rows.Err()
+}
+
 // RememberCategory stores an answer. The same category again adds a
 // confirmation; a different one replaces the old answer.
 func (s *Store) RememberCategory(name, category, source string) error {

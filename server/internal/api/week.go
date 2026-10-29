@@ -86,7 +86,7 @@ func (s *Server) assessAt(events []calendar.Event, from, to, at time.Time) (load
 // and the check-ins and health days the assessments of [first, last] need.
 type riskData struct {
 	t        load.Thresholds
-	cats     load.CalendarCategories
+	cats     load.EventCategories
 	checkins []store.Checkin
 	health   []store.Health
 }
@@ -142,32 +142,41 @@ func (s *Server) assessWith(d riskData, events []calendar.Event, from, to, at ti
 }
 
 // eventCategory is the category of a calendar event. An event the agent wrote
-// carries the category the user confirmed; the rest gets it from its calendar.
-func eventCategory(cats load.CalendarCategories, e calendar.Event) load.Category {
+// carries the category the user confirmed; the rest gets it from the memory of
+// titles, its calendar or the words of its title.
+func eventCategory(cats load.EventCategories, e calendar.Event) load.Category {
 	if c := load.Category(e.Category); c.Valid() {
 		return c
 	}
-	return cats.Of(e.Source, e.Calendar)
+	return cats.Of(e.Source, e.Calendar, e.Title)
 }
 
-// loadSettings reads the thresholds and calendar categories; stored values
-// override the defaults.
-func (s *Server) loadSettings() (load.Thresholds, load.CalendarCategories, error) {
+// loadSettings reads the thresholds, the calendar categories and the memory
+// of titles; stored values override the defaults.
+func (s *Server) loadSettings() (load.Thresholds, load.EventCategories, error) {
 	kv, err := s.store.Settings()
 	if err != nil {
-		return load.Thresholds{}, nil, err
+		return load.Thresholds{}, load.EventCategories{}, err
 	}
 	t := load.DefaultThresholds()
 	if raw, ok := kv[settingThresholds]; ok {
 		if t, err = load.ParseThresholds([]byte(raw)); err != nil {
-			return t, nil, err
+			return t, load.EventCategories{}, err
 		}
 	}
-	var cats load.CalendarCategories
+	var cats load.EventCategories
 	if raw, ok := kv[settingCalendarCategories]; ok {
-		if cats, err = load.ParseCalendarCategories([]byte(raw)); err != nil {
-			return t, nil, err
+		if cats.Calendars, err = load.ParseCalendarCategories([]byte(raw)); err != nil {
+			return t, cats, err
 		}
+	}
+	mem, err := s.store.CategoryMemory()
+	if err != nil {
+		return t, cats, err
+	}
+	cats.Memory = make(map[string]load.Category, len(mem))
+	for name, c := range mem {
+		cats.Memory[name] = load.Category(c)
 	}
 	return t, cats, nil
 }

@@ -7,7 +7,7 @@ import '../theme.dart';
 import 'motion.dart';
 import 'risk_indicator.dart';
 
-const _categoryNames = {'study': 'Учёба', 'work': 'Работа', 'hobby': 'Хобби', 'rest': 'Отдых', 'chores': 'Дела'};
+const _categoryNames = {'study': 'Учёба', 'work': 'Работа', 'sport': 'Спорт', 'hobby': 'Хобби', 'rest': 'Отдых', 'chores': 'Дела'};
 
 /// "Дальше": the next event with a countdown and the day on a time line.
 /// The main card of the home screen, on the hero gradient.

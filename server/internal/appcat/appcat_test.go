@@ -227,3 +227,33 @@ func TestModelTroubleLeavesNamesForLater(t *testing.T) {
 		t.Error("an unknown error must be reported")
 	}
 }
+
+// An old guess of the model gives way to the dictionary; the user's own
+// choice gives way to nothing.
+func TestDictionaryBeatsModelNotUser(t *testing.T) {
+	r, st := newResolver(t, nil, 40)
+	at := "2026-10-01T00:00:00Z"
+	if err := st.PutAppCategory(store.AppCategory{Key: "claude.ai", Category: "leisure", Origin: OriginLLM, Confidence: 0.8, At: at}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetUserAppCategory("youtube.com", "study", at); err != nil {
+		t.Fatal(err)
+	}
+	res, err := r.Resolve(context.Background(), []string{"claude.ai", "youtube.com"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g := res["claude.ai"]; g.Category != "work" || g.Origin != OriginDictionary {
+		t.Errorf("claude.ai: %+v", g)
+	}
+	if g := res["youtube.com"]; g.Category != "study" || g.Origin != OriginUser {
+		t.Errorf("youtube.com: %+v", g)
+	}
+	stored, err := st.AppCategories([]string{"claude.ai", "youtube.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored["claude.ai"].Origin != OriginDictionary || stored["youtube.com"].Category != "study" {
+		t.Errorf("stored: %+v", stored)
+	}
+}

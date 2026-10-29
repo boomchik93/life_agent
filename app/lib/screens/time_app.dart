@@ -150,7 +150,7 @@ class _AppScreenState extends State<AppScreen> {
               Text('К какой категории относится', style: theme.textTheme.titleLarge),
               const SizedBox(height: 12),
               Wrap(spacing: 8, runSpacing: 8, children: [
-                for (final c in timeCategories.where((c) => c != 'chores' && c != 'rest'))
+                for (final c in appTimeCategories)
                   CatChip(category: c, selected: _category == c, onTap: () => _choose(c)),
               ]),
               const SizedBox(height: 8),

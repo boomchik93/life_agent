@@ -4,11 +4,12 @@ import 'api.dart';
 import 'usage.dart';
 
 /// The category of the "Время" tab an app category belongs to; null for what
-/// says nothing (unknown, sleep).
+/// says nothing (unknown, sleep). Video, music and games are rest, not a hobby.
 String? timeCategoryOf(String appCategory) => switch (appCategory) {
       'study' => 'study',
       'work' || 'career' => 'work',
-      'leisure' || 'sport' => 'hobby',
+      'sport' => 'sport',
+      'leisure' => 'rest',
       'social' => 'other',
       _ => null,
     };
@@ -17,6 +18,7 @@ String? timeCategoryOf(String appCategory) => switch (appCategory) {
 String appCategoryOf(String timeCategory) => switch (timeCategory) {
       'study' => 'study',
       'work' => 'work',
+      'sport' => 'sport',
       'hobby' || 'rest' => 'leisure',
       'chores' => 'work',
       _ => 'social',
