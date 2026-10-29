@@ -6,12 +6,15 @@ import '../controller.dart';
 import '../format.dart';
 import '../models.dart';
 import '../notifications.dart';
+import '../platform.dart';
 import '../theme.dart';
 import '../timetrack.dart';
+import '../update.dart';
 import '../theme_mode.dart';
 import '../widgets/next_card.dart';
 import 'more_screen.dart';
 import 'time_screen.dart';
+import 'update_dialog.dart';
 import '../widgets/loadable.dart';
 import '../widgets/composer.dart';
 import '../widgets/decor.dart';
@@ -28,7 +31,8 @@ import 'settings_screen.dart';
 import 'week_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.controller, this.themeMode, this.now, this.scheduler, this.notifier});
+  const HomeScreen(
+      {super.key, required this.controller, this.themeMode, this.now, this.scheduler, this.notifier, this.installer});
 
   final AppController controller;
   final ThemeModeController? themeMode;
@@ -37,6 +41,9 @@ class HomeScreen extends StatefulWidget {
   /// Replaceable in tests; the phone uses WorkManager and system notifications.
   final SyncScheduler? scheduler;
   final Notifier? notifier;
+
+  /// Replaceable in tests; the phone installs updates through MainActivity.
+  final Installer? installer;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -59,6 +66,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// After this long in the background the screens ask the server again.
   static const _resumeAfter = Duration(minutes: 2);
 
+  /// How often the server is asked for a new version of the app.
+  static const _updateEvery = Duration(hours: 6);
+  DateTime? _updateCheckedAt;
+  bool _updateShown = false;
+
   @override
   void initState() {
     super.initState();
@@ -66,6 +78,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _load();
     _readCheckinDate();
+    _checkUpdate();
   }
 
   @override
@@ -83,6 +96,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (state != AppLifecycleState.resumed) return;
     _readCheckinDate(); // a new day may have begun
     if (DateTime.now().difference(_loadedAt) >= _resumeAfter) _reload();
+    _checkUpdate();
+  }
+
+  /// Asks the server for a newer APK and offers it; quietly gives up on any
+  /// error: the app works the same without the update.
+  Future<void> _checkUpdate({bool force = false}) async {
+    final api = _c.api;
+    if (!isPhone || api is! UpdateApi || _updateShown) return;
+    final at = _updateCheckedAt;
+    if (!force && at != null && DateTime.now().difference(at) < _updateEvery) return;
+    _updateCheckedAt = DateTime.now();
+    final installer = widget.installer ?? const ChannelInstaller();
+    try {
+      final release = await newerRelease(api as UpdateApi, installer);
+      if (release == null || !mounted || _updateShown) return;
+      _updateShown = true;
+      try {
+        await showUpdateDialog(context, release, api as UpdateApi, installer);
+      } finally {
+        _updateShown = false;
+      }
+    } catch (_) {
+      // No network, no server, no channel: try at the next check.
+    }
   }
 
   /// Another server: what is shown belongs to the old one.
@@ -90,6 +127,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _calendarTick.value++;
     setState(() {});
     _load(clear: true);
+    _checkUpdate(force: true);
   }
 
   /// The week and the colours of the last days. What was shown stays until

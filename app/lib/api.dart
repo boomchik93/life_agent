@@ -12,6 +12,7 @@ import 'llm_info.dart';
 import 'models.dart';
 import 'sources.dart';
 import 'timetrack.dart';
+import 'update.dart';
 import 'usage.dart';
 import 'plan.dart';
 import 'response_cache.dart';
@@ -134,7 +135,7 @@ abstract interface class CachedReads {
   Cached<Review>? keptReview({Wall? start});
 }
 
-class HttpLifeApi implements LifeApi, TimeApi, CachedReads {
+class HttpLifeApi implements LifeApi, TimeApi, CachedReads, UpdateApi {
   HttpLifeApi({required this.baseUrl, required this.token, http.Client? client, this.cache, DateTime Function()? now})
       : _client = client ?? http.Client(),
         _now = now ?? DateTime.now;
@@ -194,6 +195,8 @@ class HttpLifeApi implements LifeApi, TimeApi, CachedReads {
       case 401:
         throw const ApiException(
             ApiProblem.unauthorized, 'Токен не подошёл. Проверь токен в настройках.');
+      case 404 when _serverField(res, 'code') == 'no_release':
+        throw const _NoRelease();
       case 400:
         throw ApiException(ApiProblem.server, _serverMessage(res) ?? 'Сервер отклонил запрос.');
       case 409:
@@ -615,4 +618,84 @@ class HttpLifeApi implements LifeApi, TimeApi, CachedReads {
   Future<void> ping() async {
     await _send('GET', _uri('/v1/settings'));
   }
+
+  @override
+  Future<AppRelease?> latestRelease() async {
+    final Map<String, dynamic> j;
+    try {
+      j = await _send('GET', _uri('/v1/app/latest'));
+    } on _NoRelease {
+      return null;
+    }
+    try {
+      return AppRelease.fromJson(j);
+    } catch (_) {
+      throw const ApiException(ApiProblem.server, 'Сервер вернул неожиданные данные. Обнови приложение.');
+    }
+  }
+
+  // Between two pieces of the APK; a stalled download ends instead of hanging.
+  static const _downloadIdle = Duration(seconds: 60);
+
+  @override
+  Future<void> downloadRelease(AppRelease release, String path,
+      {void Function(int got, int total)? onProgress}) async {
+    final req = http.Request('GET', _uri('/v1/app/apk'))..headers['Authorization'] = 'Bearer $token';
+    final file = File(path);
+    final hash = Sha256Sink();
+    IOSink? out;
+    var got = 0;
+    try {
+      final res = await _client.send(req).timeout(_timeout);
+      if (res.statusCode == 401) {
+        throw const ApiException(ApiProblem.unauthorized, 'Токен не подошёл. Проверь токен в настройках.');
+      }
+      if (res.statusCode != 200) {
+        throw ApiException(ApiProblem.server, 'Сервер не отдал обновление (код ${res.statusCode}). Попробуй позже.');
+      }
+      out = file.openWrite();
+      await for (final chunk in res.stream.timeout(_downloadIdle)) {
+        out.add(chunk);
+        hash.add(chunk);
+        got += chunk.length;
+        onProgress?.call(got, release.size);
+      }
+      await out.close();
+      out = null;
+      hash.close();
+    } on TimeoutException {
+      await _discard(out, file);
+      throw const ApiException(ApiProblem.network, 'Скачивание оборвалось. Проверь интернет и попробуй ещё раз.');
+    } on SocketException {
+      await _discard(out, file);
+      throw const ApiException(ApiProblem.network, 'Нет связи с сервером. Проверь интернет.');
+    } on http.ClientException {
+      await _discard(out, file);
+      throw const ApiException(ApiProblem.network, 'Нет связи с сервером. Проверь интернет.');
+    } on HandshakeException {
+      await _discard(out, file);
+      throw const ApiException(ApiProblem.network, 'Не удалось установить защищённое соединение с сервером.');
+    } catch (_) {
+      await _discard(out, file);
+      rethrow;
+    }
+    if (got != release.size || hash.hex != release.sha256) {
+      await _discard(null, file);
+      throw const ApiException(ApiProblem.server, 'Скачанный файл повреждён. Попробуй ещё раз.');
+    }
+  }
+
+  Future<void> _discard(IOSink? out, File file) async {
+    try {
+      await out?.close();
+    } catch (_) {}
+    try {
+      if (await file.exists()) await file.delete();
+    } catch (_) {}
+  }
+}
+
+/// `GET /v1/app/latest` when the server has no APK to hand out.
+class _NoRelease implements Exception {
+  const _NoRelease();
 }

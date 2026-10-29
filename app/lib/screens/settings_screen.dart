@@ -7,12 +7,15 @@ import '../health.dart';
 import '../platform.dart';
 import '../usage.dart';
 import '../settings.dart';
+import '../update.dart';
 import 'health_screen.dart';
 import 'sources_screen.dart';
 import 'models_screen.dart';
+import 'update_dialog.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key, required this.controller, this.healthSource, this.scheduler, this.usage});
+  const SettingsScreen(
+      {super.key, required this.controller, this.healthSource, this.scheduler, this.usage, this.installer});
 
   final AppController controller;
 
@@ -20,6 +23,7 @@ class SettingsScreen extends StatefulWidget {
   final HealthSource? healthSource;
   final SyncScheduler? scheduler;
   final UsageSource? usage;
+  final Installer? installer;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -33,6 +37,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _busy = false;
   String? _result;
   bool _resultOk = false;
+  bool _updateBusy = false;
+  String? _updateNote;
 
   @override
   void dispose() {
@@ -64,6 +70,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!_form.currentState!.validate()) return;
     await widget.controller.saveConnection(_typed);
     if (mounted) Navigator.of(context).pop(true);
+  }
+
+  Future<void> _checkUpdate() async {
+    final api = widget.controller.api;
+    if (api is! UpdateApi) return;
+    final installer = widget.installer ?? const ChannelInstaller();
+    setState(() {
+      _updateBusy = true;
+      _updateNote = null;
+    });
+    try {
+      final release = await newerRelease(api as UpdateApi, installer);
+      if (!mounted) return;
+      if (release == null) {
+        final installed = await installer.installedVersion();
+        if (mounted) setState(() => _updateNote = 'Установлена последняя версия ($installed).');
+      } else {
+        await showUpdateDialog(context, release, api as UpdateApi, installer);
+      }
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _updateNote = e.message);
+    } catch (_) {
+      if (mounted) setState(() => _updateNote = 'Не удалось проверить обновление.');
+    } finally {
+      if (mounted) setState(() => _updateBusy = false);
+    }
   }
 
   @override
@@ -185,6 +217,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                 ),
+              ),
+            if (isPhone)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.system_update),
+                title: const Text('Обновление приложения'),
+                subtitle: Text(widget.controller.api == null
+                    ? 'Сначала сохрани адрес и токен'
+                    : _updateNote ?? 'Проверить, есть ли на сервере новая версия'),
+                trailing: _updateBusy
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                    : null,
+                enabled: widget.controller.api is UpdateApi && !_updateBusy,
+                onTap: _checkUpdate,
               ),
           ],
         ),

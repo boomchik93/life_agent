@@ -55,6 +55,7 @@ type Server struct {
 	advisor AdviceGenerator
 	caller  appcat.Caller
 	keyed   map[string]bool
+	appDir  string
 }
 
 type Options struct {
@@ -72,6 +73,8 @@ type Options struct {
 	// Keyed lists the server-side sources whose keys are in the environment
 	// (steam, github, leetcode); the others are shown as not set up.
 	Keyed map[string]bool
+	// AppDir holds the phone app release (see app.go); empty: no updates.
+	AppDir string
 	// RatePerSec and Burst limit requests per client on /v1/*.
 	RatePerSec float64
 	Burst      int
@@ -96,6 +99,7 @@ func NewServer(o Options) *Server {
 		advisor: o.Advisor,
 		caller:  o.Caller,
 		keyed:   o.Keyed,
+		appDir:  o.AppDir,
 	}
 	if s.loc == nil {
 		s.loc = time.UTC
@@ -146,6 +150,8 @@ func (s *Server) Handler() http.Handler {
 	v1.HandleFunc("GET /v1/activities", s.getActivities)
 	v1.HandleFunc("PUT /v1/apps/category", s.putAppCategory)
 	v1.HandleFunc("GET /v1/risks/history", s.getRiskHistory)
+	v1.HandleFunc("GET /v1/app/latest", s.getAppLatest)
+	v1.HandleFunc("GET /v1/app/apk", s.getAppAPK)
 	mux.Handle("/v1/", s.rateLimit(s.auth(v1)))
 
 	return mux

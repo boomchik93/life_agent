@@ -158,6 +158,7 @@ func serve(cfg config.Config, st *store.Store, logger *slog.Logger) error {
 	opts := api.Options{
 		Store: st, Token: cfg.Token, Logger: logger,
 		Calendar: collector, Location: cfg.Location,
+		AppDir:     cfg.AppDir,
 		RatePerSec: 5, Burst: 20,
 		Keyed: map[string]bool{
 			activity.Steam:    cfg.SteamKey != "",

@@ -55,6 +55,9 @@ func TestLoadDefaults(t *testing.T) {
 	if c.BackupDir != "/opt/life-agent/backup" {
 		t.Errorf("backup dir = %q", c.BackupDir)
 	}
+	if c.AppDir != "/opt/life-agent/app" {
+		t.Errorf("app dir = %q", c.AppDir)
+	}
 	if c.Location.String() != "Asia/Yekaterinburg" {
 		t.Errorf("tz = %q", c.Location)
 	}

@@ -24,8 +24,11 @@ type Config struct {
 	Listen    string
 	DBPath    string
 	BackupDir string
-	Token     string
-	Location  *time.Location
+	// AppDir holds the phone app the server hands out: life-agent.apk and
+	// latest.json, both put there by deploy.sh. Read-only for the service.
+	AppDir   string
+	Token    string
+	Location *time.Location
 
 	GoogleKeyFile string   // service-account JSON key
 	CalendarIDs   []string // calendars read by the agent
@@ -54,6 +57,7 @@ func Load(getenv func(string) string) (Config, error) {
 		Token:  getenv("ACCESS_TOKEN"),
 	}
 	c.BackupDir = orDefault(getenv("BACKUP_DIR"), filepath.Join(filepath.Dir(c.DBPath), "..", "backup"))
+	c.AppDir = orDefault(getenv("APP_DIR"), filepath.Join(filepath.Dir(c.DBPath), "..", "app"))
 
 	if len(c.Token) < minTokenLen {
 		return Config{}, fmt.Errorf("ACCESS_TOKEN must be at least %d characters", minTokenLen)
