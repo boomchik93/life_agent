@@ -28,13 +28,13 @@ func TestPromptHasTheMomentAndNoCalculation(t *testing.T) {
 
 func TestDecodeAcceptsThePlanExamples(t *testing.T) {
 	event := `{"kind":"event","title":"КВН","date":{"type":"weekday","value":"fri","week":null},"time_from":"18:00","time_to":"20:00",
-	 "duration_min":null,"deadline":null,"recurrence":null,"category_guess":"hobby","missing":[]}`
+	 "duration_min":null,"deadline":null,"recurrence":null,"category_guess":"hobby","guessed":[]}`
 	task := `{"kind":"task","title":"Курсовая","date":null,"time_from":null,"time_to":null,"duration_min":360,
-	 "deadline":{"type":"weekday","value":"fri","week":null},"recurrence":null,"category_guess":"study","missing":[]}`
+	 "deadline":{"type":"weekday","value":"fri","week":null},"recurrence":null,"category_guess":"study","guessed":[]}`
 	flat := `{"kind":"task","title":"Курсовая","date":null,"time_from":null,"time_to":null,"duration_min":360,
-	 "deadline":{"type":"weekday","days":null,"value":"fri","week":null},"recurrence":null,"category_guess":"study","missing":[]}`
+	 "deadline":{"type":"weekday","days":null,"value":"fri","week":null},"recurrence":null,"category_guess":"study","guessed":[]}`
 	weekly := `{"kind":"event","title":"КВН","date":{"type":"weekday","value":"fri","week":null},"time_from":"18:00","time_to":"20:00",
-	 "duration_min":null,"deadline":null,"recurrence":"FREQ=WEEKLY;BYDAY=FR","category_guess":"hobby","missing":[]}`
+	 "duration_min":null,"deadline":null,"recurrence":"FREQ=WEEKLY;BYDAY=FR","category_guess":"hobby","guessed":[]}`
 	for name, raw := range map[string]string{"event": event, "task": task, "strict-schema form with nulls": flat, "weekly": weekly} {
 		if _, err := Decode(raw, now, ekb); err != nil {
 			t.Errorf("%s: %v", name, err)
@@ -44,7 +44,7 @@ func TestDecodeAcceptsThePlanExamples(t *testing.T) {
 
 func TestDecodeRejects(t *testing.T) {
 	const base = `{"kind":"event","title":"КВН","date":{"type":"weekday","value":"fri"},"time_from":"18:00","time_to":"20:00",
-	 "duration_min":null,"deadline":null,"recurrence":null,"category_guess":"hobby","missing":[]}`
+	 "duration_min":null,"deadline":null,"recurrence":null,"category_guess":"hobby","guessed":[]}`
 	rep := func(old, new string) string {
 		if !strings.Contains(base, old) {
 			panic("test bug: " + old)
@@ -53,13 +53,13 @@ func TestDecodeRejects(t *testing.T) {
 	}
 	tests := []struct{ name, raw string }{
 		{"not an object", `[]`},
-		{"unknown field", rep(`"missing":[]`, `"missing":[],"note":"x"`)},
+		{"unknown field", rep(`"guessed":[]`, `"guessed":[],"note":"x"`)},
 		{"wrong type", rep(`"title":"КВН"`, `"title":5`)},
 		{"unknown kind", rep(`"kind":"event"`, `"kind":"reminder"`)},
 		{"empty title", rep(`"title":"КВН"`, `"title":"  "`)},
 		{"huge title", rep(`"title":"КВН"`, `"title":"`+strings.Repeat("я", 201)+`"`)},
 		{"unknown category", rep(`"hobby"`, `"fun"`)},
-		{"unknown missing", rep(`"missing":[]`, `"missing":["color"]`)},
+		{"unknown guessed", rep(`"guessed":[]`, `"guessed":["color"]`)},
 		{"bad time", rep(`"18:00"`, `"6pm"`)},
 		{"24:00", rep(`"20:00"`, `"24:00"`)},
 		{"zero duration", rep(`"duration_min":null`, `"duration_min":0`)},
@@ -89,7 +89,7 @@ func TestDecodeRejects(t *testing.T) {
 
 func TestDecodeEmptyRecurrenceBecomesNil(t *testing.T) {
 	e, err := Decode(`{"kind":"event","title":"x","date":null,"time_from":null,"time_to":null,"duration_min":null,
-	 "deadline":null,"recurrence":"","category_guess":"other","missing":[]}`, now, ekb)
+	 "deadline":null,"recurrence":"","category_guess":"other","guessed":[]}`, now, ekb)
 	if err != nil || e.Recurrence != nil {
 		t.Fatalf("%v %v", e.Recurrence, err)
 	}
@@ -105,6 +105,7 @@ func TestBuild(t *testing.T) {
 		end     string
 		dl      string
 		missing string
+		guessed string
 		problem string
 	}{
 		{
@@ -135,19 +136,25 @@ func TestBuild(t *testing.T) {
 			missing: "time_to",
 		},
 		{
-			name:    "event with nothing but a title",
+			name:    "event with nothing but a title is today",
 			in:      Extract{Kind: "event", Title: "Встреча", CategoryGuess: "other"},
-			missing: "date,time_from,time_to",
+			date:    "2026-10-28",
+			missing: "time_from,time_to",
+			guessed: "date",
 		},
 		{
-			name:    "task without duration and deadline",
+			name:    "task without a day is due in a week",
 			in:      Extract{Kind: "task", Title: "Доклад", CategoryGuess: "study"},
-			missing: "duration_min,deadline",
+			dl:      "2026-11-04",
+			missing: "duration_min",
+			guessed: "deadline",
 		},
 		{
-			name: "the model's own missing is ignored",
-			in:   Extract{Kind: "event", Title: "КВН", Date: wday("fri", ""), TimeFrom: s("18:00"), TimeTo: s("20:00"), CategoryGuess: "hobby", Missing: []string{"date"}},
-			date: "2026-10-30", start: "2026-10-30T18:00:00+05:00", end: "2026-10-30T20:00:00+05:00",
+			name: "the model's guesses are passed on",
+			in: Extract{Kind: "event", Title: "Стоматолог", Date: rel(1), TimeFrom: s("10:00"), DurationMin: ip(60), CategoryGuess: "chores",
+				Guessed: []string{"time_from", "time_to"}},
+			date: "2026-10-29", start: "2026-10-29T10:00:00+05:00", end: "2026-10-29T11:00:00+05:00",
+			guessed: "time_from,time_to",
 		},
 		{
 			name: "task with a date and no deadline uses the date as deadline",
@@ -205,6 +212,9 @@ func TestBuild(t *testing.T) {
 			if join(r.Missing) != tt.missing {
 				t.Errorf("missing %v, want %q", r.Missing, tt.missing)
 			}
+			if join(r.Guessed) != tt.guessed {
+				t.Errorf("guessed %v, want %q", r.Guessed, tt.guessed)
+			}
 			var codes []string
 			for _, p := range r.Problems {
 				codes = append(codes, p.Code)
@@ -215,8 +225,8 @@ func TestBuild(t *testing.T) {
 			if join(codes) != tt.problem {
 				t.Errorf("problems %v, want %q", codes, tt.problem)
 			}
-			if r.Missing == nil || r.Problems == nil {
-				t.Error("missing and problems must be empty lists, not null")
+			if r.Missing == nil || r.Guessed == nil || r.Problems == nil {
+				t.Error("missing, guessed and problems must be empty lists, not null")
 			}
 		})
 	}
@@ -265,7 +275,7 @@ func newParser(f *fakeCaller) *Parser {
 	return &Parser{LLM: f, Loc: ekb, Now: func() time.Time { return now }}
 }
 
-const kvn = `{"kind":"event","title":"КВН","date":{"type":"weekday","days":null,"value":"fri","week":null},"time_from":"18:00","time_to":"20:00","duration_min":null,"deadline":null,"recurrence":null,"category_guess":"hobby","missing":[]}`
+const kvn = `{"kind":"event","title":"КВН","date":{"type":"weekday","days":null,"value":"fri","week":null},"time_from":"18:00","time_to":"20:00","duration_min":null,"deadline":null,"recurrence":null,"category_guess":"hobby","guessed":[]}`
 
 func TestParserEndToEnd(t *testing.T) {
 	f := &fakeCaller{answer: "```json\n" + kvn + "\n```"}

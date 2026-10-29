@@ -13,7 +13,8 @@
     "deadline": null,
     "recurrence": null,
     "missing": [],
-    "category": "hobby"
+    "category": "hobby",
+    "guessed": []
    }
   },
   {
@@ -28,7 +29,8 @@
     "deadline": null,
     "recurrence": null,
     "missing": [],
-    "category": "study"
+    "category": "study",
+    "guessed": []
    }
   },
   {
@@ -42,10 +44,11 @@
     "duration_min": null,
     "deadline": null,
     "recurrence": null,
-    "missing": [
+    "missing": [],
+    "category": "chores",
+    "guessed": [
      "time_to"
-    ],
-    "category": "chores"
+    ]
    }
   },
   {
@@ -60,7 +63,8 @@
     "deadline": null,
     "recurrence": null,
     "missing": [],
-    "category": "study"
+    "category": "study",
+    "guessed": []
    }
   },
   {
@@ -75,7 +79,8 @@
     "deadline": null,
     "recurrence": "FREQ=WEEKLY;BYDAY=FR",
     "missing": [],
-    "category": "sport"
+    "category": "sport",
+    "guessed": []
    }
   },
   {
@@ -90,7 +95,8 @@
     "deadline": null,
     "recurrence": null,
     "missing": [],
-    "category": "sport"
+    "category": "sport",
+    "guessed": []
    }
   },
   {
@@ -105,7 +111,8 @@
     "deadline": null,
     "recurrence": null,
     "missing": [],
-    "category": "sport"
+    "category": "sport",
+    "guessed": []
    }
   },
   {
@@ -120,7 +127,8 @@
     "deadline": null,
     "recurrence": null,
     "missing": [],
-    "category": "sport"
+    "category": "sport",
+    "guessed": []
    }
   },
   {
@@ -135,7 +143,8 @@
     "deadline": null,
     "recurrence": null,
     "missing": [],
-    "category": "study"
+    "category": "study",
+    "guessed": []
    }
   },
   {
@@ -149,10 +158,11 @@
     "duration_min": null,
     "deadline": null,
     "recurrence": null,
-    "missing": [
+    "missing": [],
+    "category": "rest",
+    "guessed": [
      "time_to"
-    ],
-    "category": "rest"
+    ]
    }
   },
   {
@@ -167,7 +177,8 @@
     "deadline": null,
     "recurrence": null,
     "missing": [],
-    "category": "study"
+    "category": "study",
+    "guessed": []
    }
   },
   {
@@ -182,7 +193,8 @@
     "deadline": null,
     "recurrence": null,
     "missing": [],
-    "category": "sport"
+    "category": "sport",
+    "guessed": []
    }
   },
   {
@@ -197,7 +209,8 @@
     "deadline": null,
     "recurrence": "FREQ=WEEKLY;BYDAY=TH",
     "missing": [],
-    "category": "study"
+    "category": "study",
+    "guessed": []
    }
   },
   {
@@ -212,7 +225,8 @@
     "deadline": null,
     "recurrence": null,
     "missing": [],
-    "category": "work"
+    "category": "work",
+    "guessed": []
    }
   },
   {
@@ -226,10 +240,11 @@
     "duration_min": null,
     "deadline": null,
     "recurrence": null,
-    "missing": [
+    "missing": [],
+    "category": "rest",
+    "guessed": [
      "time_to"
-    ],
-    "category": "rest"
+    ]
    }
   },
   {
@@ -244,7 +259,8 @@
     "deadline": null,
     "recurrence": null,
     "missing": [],
-    "category": "rest"
+    "category": "rest",
+    "guessed": []
    }
   },
   {
@@ -259,7 +275,8 @@
     "deadline": null,
     "recurrence": null,
     "missing": [],
-    "category": "rest"
+    "category": "rest",
+    "guessed": []
    }
   },
   {
@@ -273,10 +290,11 @@
     "duration_min": null,
     "deadline": null,
     "recurrence": null,
-    "missing": [
+    "missing": [],
+    "category": "rest",
+    "guessed": [
      "time_to"
-    ],
-    "category": "rest"
+    ]
    }
   },
   {
@@ -291,7 +309,8 @@
     "deadline": null,
     "recurrence": null,
     "missing": [],
-    "category": "work"
+    "category": "work",
+    "guessed": []
    }
   },
   {
@@ -305,10 +324,11 @@
     "duration_min": null,
     "deadline": null,
     "recurrence": null,
-    "missing": [
+    "missing": [],
+    "category": "chores",
+    "guessed": [
      "time_to"
-    ],
-    "category": "chores"
+    ]
    }
   },
   {
@@ -322,10 +342,11 @@
     "duration_min": null,
     "deadline": null,
     "recurrence": null,
-    "missing": [
+    "missing": [],
+    "category": "study",
+    "guessed": [
      "time_to"
-    ],
-    "category": "study"
+    ]
    }
   },
   {
@@ -340,7 +361,8 @@
     "deadline": null,
     "recurrence": null,
     "missing": [],
-    "category": "work"
+    "category": "work",
+    "guessed": []
    }
   },
   {
@@ -354,10 +376,11 @@
     "duration_min": null,
     "deadline": null,
     "recurrence": null,
-    "missing": [
+    "missing": [],
+    "category": "study",
+    "guessed": [
      "time_to"
-    ],
-    "category": "study"
+    ]
    }
   },
   {
@@ -372,7 +395,8 @@
     "deadline": null,
     "recurrence": "FREQ=WEEKLY;BYDAY=MO",
     "missing": [],
-    "category": "work"
+    "category": "work",
+    "guessed": []
    }
   },
   {
@@ -387,7 +411,8 @@
     "deadline": null,
     "recurrence": null,
     "missing": [],
-    "category": "sport"
+    "category": "sport",
+    "guessed": []
    }
   },
   {
@@ -401,10 +426,11 @@
     "duration_min": null,
     "deadline": null,
     "recurrence": null,
-    "missing": [
+    "missing": [],
+    "category": "rest",
+    "guessed": [
      "time_to"
-    ],
-    "category": "rest"
+    ]
    }
   },
   {
@@ -418,10 +444,11 @@
     "duration_min": null,
     "deadline": null,
     "recurrence": null,
-    "missing": [
+    "missing": [],
+    "category": "study",
+    "guessed": [
      "time_to"
-    ],
-    "category": "study"
+    ]
    }
   },
   {
@@ -435,11 +462,12 @@
     "duration_min": null,
     "deadline": null,
     "recurrence": null,
-    "missing": [
+    "missing": [],
+    "category": "rest",
+    "guessed": [
      "time_from",
      "time_to"
-    ],
-    "category": "rest"
+    ]
    }
   },
   {
@@ -453,11 +481,12 @@
     "duration_min": null,
     "deadline": null,
     "recurrence": null,
-    "missing": [
+    "missing": [],
+    "category": "rest",
+    "guessed": [
      "time_from",
      "time_to"
-    ],
-    "category": "rest"
+    ]
    }
   },
   {
@@ -471,10 +500,11 @@
     "duration_min": null,
     "deadline": null,
     "recurrence": null,
-    "missing": [
+    "missing": [],
+    "category": "study",
+    "guessed": [
      "time_to"
-    ],
-    "category": "study"
+    ]
    }
   },
   {
@@ -489,7 +519,8 @@
     "deadline": "2026-10-30",
     "recurrence": null,
     "missing": [],
-    "category": "study"
+    "category": "study",
+    "guessed": []
    }
   },
   {
@@ -504,7 +535,8 @@
     "deadline": "2026-10-29",
     "recurrence": null,
     "missing": [],
-    "category": "study"
+    "category": "study",
+    "guessed": []
    }
   },
   {
@@ -519,7 +551,8 @@
     "deadline": "2026-11-05",
     "recurrence": null,
     "missing": [],
-    "category": "study"
+    "category": "study",
+    "guessed": []
    }
   },
   {
@@ -534,7 +567,8 @@
     "deadline": "2026-10-28",
     "recurrence": null,
     "missing": [],
-    "category": "chores"
+    "category": "chores",
+    "guessed": []
    }
   },
   {
@@ -549,7 +583,8 @@
     "deadline": "2026-11-02",
     "recurrence": null,
     "missing": [],
-    "category": "study"
+    "category": "study",
+    "guessed": []
    }
   },
   {
@@ -564,7 +599,8 @@
     "deadline": "2026-11-12",
     "recurrence": null,
     "missing": [],
-    "category": "study"
+    "category": "study",
+    "guessed": []
    }
   },
   {
@@ -579,7 +615,8 @@
     "deadline": "2026-11-01",
     "recurrence": null,
     "missing": [],
-    "category": "study"
+    "category": "study",
+    "guessed": []
    }
   },
   {
@@ -594,7 +631,8 @@
     "deadline": "2026-10-29",
     "recurrence": null,
     "missing": [],
-    "category": "study"
+    "category": "study",
+    "guessed": []
    }
   },
   {
@@ -608,10 +646,11 @@
     "duration_min": null,
     "deadline": "2026-10-30",
     "recurrence": null,
-    "missing": [
+    "missing": [],
+    "category": "study",
+    "guessed": [
      "duration_min"
-    ],
-    "category": "study"
+    ]
    }
   },
   {
@@ -623,12 +662,13 @@
     "start": null,
     "end": null,
     "duration_min": 300,
-    "deadline": null,
+    "deadline": "2026-11-04",
     "recurrence": null,
-    "missing": [
+    "missing": [],
+    "category": "study",
+    "guessed": [
      "deadline"
-    ],
-    "category": "study"
+    ]
    }
   },
   {
@@ -640,13 +680,32 @@
     "start": null,
     "end": null,
     "duration_min": null,
-    "deadline": null,
+    "deadline": "2026-11-04",
     "recurrence": null,
-    "missing": [
+    "missing": [],
+    "category": "study",
+    "guessed": [
      "duration_min",
      "deadline"
-    ],
-    "category": "study"
+    ]
+   }
+  },
+  {
+   "text": "мне надо отнести контейнеры завтра",
+   "expect": {
+    "kind": "task",
+    "title": "Отнести контейнеры",
+    "date": null,
+    "start": null,
+    "end": null,
+    "duration_min": null,
+    "deadline": "2026-10-29",
+    "recurrence": null,
+    "missing": [],
+    "category": "chores",
+    "guessed": [
+     "duration_min"
+    ]
    }
   }
  ]

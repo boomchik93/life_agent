@@ -38,7 +38,7 @@ void main() {
   test('missing fields are named, not guessed', () {
     final d = CardDraft.fromParsed(sampleCard(date: null, timeFrom: null, timeTo: null));
     expect(d.missing(), ['date', 'time_from', 'time_to']);
-    expect(missingText(d.missing()), 'дата, время начала, время конца');
+    expect(fieldsText(d.missing()), 'дата, время начала, время конца');
     expect(d.isComplete, isFalse);
   });
 

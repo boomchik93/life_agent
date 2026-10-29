@@ -1,16 +1,22 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../advice.dart';
 import '../api.dart';
+import '../card.dart';
+import '../format.dart';
 import '../platform.dart';
 import '../screens/card_screen.dart';
+import '../slot.dart';
 import '../theme.dart';
 
 const maxPhraseLength = 500;
 
 /// The input line of the home screen. Voice input is the microphone of the
-/// keyboard. The typed text is never cleared by an error.
+/// keyboard. The typed text is never cleared by an error. A task the model
+/// could fill in whole is saved at once; anything else opens the card.
 class Composer extends StatefulWidget {
   const Composer({super.key, required this.api, this.now, this.onOpenModels, this.onSaved, this.onAdvice, this.inline = false});
 
@@ -37,6 +43,7 @@ class Composer extends StatefulWidget {
 class _ComposerState extends State<Composer> {
   final _text = TextEditingController();
   final _focus = FocusNode();
+  final _keys = IdempotencyKeys();
   bool _busy = false;
   ApiException? _error;
   int _ticket = 0; // a newer request or a cancel makes older answers stale
@@ -73,10 +80,22 @@ class _ComposerState extends State<Composer> {
     try {
       final card = await widget.api.parse(_text.text.trim());
       if (!mounted || ticket != _ticket) return;
-      setState(() => _busy = false);
-      final done = await Navigator.of(context).push<String>(
-        MaterialPageRoute(builder: (_) => CardScreen(api: widget.api, card: card, now: widget.now)),
-      );
+      final draft = CardDraft.fromParsed(card);
+      // «Отнести контейнеры завтра»: nothing to ask, the task goes in as it is.
+      // Events still go through the card: a calendar write needs the user's OK.
+      final String? done;
+      if (!draft.isEvent && draft.isComplete && draft.problems(wallNow(widget.now?.call())).isEmpty) {
+        final task = draft.toTask();
+        await widget.api.saveTask(task, key: _keys.forPayload(jsonEncode(task.toJson())));
+        if (!mounted || ticket != _ticket) return;
+        setState(() => _busy = false);
+        done = 'Задача «${task.title.trim()}»: ${dayTitle(task.deadline).toLowerCase()}, ${durationText(task.durationMin)}';
+      } else {
+        setState(() => _busy = false);
+        done = await Navigator.of(context).push<String>(
+          MaterialPageRoute(builder: (_) => CardScreen(api: widget.api, card: card, now: widget.now)),
+        );
+      }
       if (done != null && mounted) {
         // Written: the phrase has served its purpose.
         _text.clear();

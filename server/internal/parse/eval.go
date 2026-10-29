@@ -33,7 +33,10 @@ type EvalExpect struct {
 	Deadline    *string  `json:"deadline"`     // task: YYYY-MM-DD
 	Recurrence  *string  `json:"recurrence"`
 	Missing     []string `json:"missing"`
-	Category    string   `json:"category"` // reported on its own, not part of the verdict
+	// Guessed are the fields the phrase does not name: any value is accepted
+	// there, only an empty one is wrong.
+	Guessed  []string `json:"guessed"`
+	Category string   `json:"category"` // reported on its own, not part of the verdict
 }
 
 type EvalSet struct {
@@ -99,22 +102,29 @@ func Diff(want EvalExpect, got Result, loc *time.Location) []string {
 	if !titleMatches(want.Title, got.Title) {
 		add("title", want.Title, got.Title)
 	}
-	if want.Kind == "event" {
-		for _, f := range []struct {
-			name string
-			w, g *string
-		}{{"date", want.Date, got.Date}, {"start", want.Start, clock(got.Start)}, {"end", want.End, clock(got.End)}} {
-			if str(f.w) != str(f.g) {
-				add(f.name, str(f.w), str(f.g))
+	guessed := func(fields ...string) bool {
+		for _, f := range fields {
+			if slices.Contains(want.Guessed, f) {
+				return true
 			}
 		}
+		return false
+	}
+	// cmp compares a field, or for a guessed one only checks that it is filled.
+	cmp := func(name, w, g string, guess bool) {
+		if guess && g == "null" {
+			add(name, "any", g)
+		} else if !guess && w != g {
+			add(name, w, g)
+		}
+	}
+	if want.Kind == "event" {
+		cmp("date", str(want.Date), str(got.Date), guessed("date"))
+		cmp("start", str(want.Start), str(clock(got.Start)), guessed("date", "time_from"))
+		cmp("end", str(want.End), str(clock(got.End)), guessed("date", "time_from", "time_to", "duration_min"))
 	} else {
-		if inum(want.DurationMin) != inum(got.DurationMin) {
-			add("duration_min", inum(want.DurationMin), inum(got.DurationMin))
-		}
-		if str(want.Deadline) != str(got.Deadline) {
-			add("deadline", str(want.Deadline), str(got.Deadline))
-		}
+		cmp("duration_min", inum(want.DurationMin), inum(got.DurationMin), guessed("duration_min"))
+		cmp("deadline", str(want.Deadline), str(got.Deadline), guessed("deadline"))
 	}
 	if normRule(want.Recurrence) != normRule(got.Recurrence) {
 		add("recurrence", normRule(want.Recurrence), normRule(got.Recurrence))

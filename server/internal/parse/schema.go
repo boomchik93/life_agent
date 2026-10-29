@@ -7,7 +7,7 @@ import "encoding/json"
 var Schema = json.RawMessage(`{
   "type": "object",
   "additionalProperties": false,
-  "required": ["kind", "title", "date", "time_from", "time_to", "duration_min", "deadline", "recurrence", "category_guess", "missing"],
+  "required": ["kind", "title", "date", "time_from", "time_to", "duration_min", "deadline", "recurrence", "category_guess", "guessed"],
   "properties": {
     "kind": {"type": "string", "enum": ["event", "task"]},
     "title": {"type": "string"},
@@ -18,7 +18,7 @@ var Schema = json.RawMessage(`{
     "deadline": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/date"}]},
     "recurrence": {"type": ["string", "null"]},
     "category_guess": {"type": "string", "enum": ["study", "work", "sport", "hobby", "rest", "chores", "other"]},
-    "missing": {"type": "array", "items": {"type": "string", "enum": ["date", "time_from", "time_to", "duration_min", "deadline"]}}
+    "guessed": {"type": "array", "items": {"type": "string", "enum": ["date", "time_from", "time_to", "duration_min", "deadline"]}}
   },
   "$defs": {
     "date": {

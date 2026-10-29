@@ -59,23 +59,61 @@ void main() {
     expect(find.text('КВН в пятницу с 18 до 20'), findsOneWidget, reason: 'the phrase stays for a fix');
   });
 
+  testWidgets('a task the model filled in whole is saved without the card', (t) async {
+    final api = FakeApi()
+      ..parseResult = sampleCard(
+          kind: 'task', title: 'Отнести контейнеры', category: 'chores', date: null, timeFrom: null, timeTo: null,
+          durationMin: 15, deadline: '2026-10-29', guessed: ['duration_min']);
+    await start(t, api);
+    await type(t, 'мне надо отнести контейнеры завтра');
+    await t.tap(find.byTooltip('Разобрать'));
+    await t.pumpAndSettle();
+
+    expect(find.text('Назад к фразе'), findsNothing, reason: 'nothing to ask');
+    expect(api.tasks, hasLength(1));
+    expect(api.tasks.single.task.toJson(), {
+      'title': 'Отнести контейнеры',
+      'category': 'chores',
+      'category_confirmed': true,
+      'duration_min': 15,
+      'deadline': '2026-10-29',
+    });
+    expect(find.text('Задача «Отнести контейнеры»: четверг, 29 октября, 15 мин'), findsOneWidget);
+    expect(find.text('мне надо отнести контейнеры завтра'), findsNothing, reason: 'saved: the phrase is cleared');
+  });
+
   testWidgets('a task card shows duration and deadline', (t) async {
     final api = FakeApi()
       ..parseResult = sampleCard(
           kind: 'task', title: 'Курсовая', category: 'study', date: null, timeFrom: null, timeTo: null,
-          durationMin: 360, deadline: '2026-10-30');
+          durationMin: 360, deadline: '2026-10-27');
     await start(t, api);
-    await type(t, 'курсовая 6 часов до пятницы');
+    await type(t, 'курсовая 6 часов ко вторнику');
     await t.tap(find.byTooltip('Разобрать'));
     await t.pumpAndSettle();
 
+    expect(api.tasks, isEmpty, reason: 'a problem goes to the card');
     expect(find.text('Задача'), findsWidgets);
     expect(find.text('6 ч'), findsWidgets);
-    expect(find.text('Пятница, 30 октября'), findsOneWidget);
+    expect(find.text('Вторник, 27 октября'), findsOneWidget);
+    expect(find.text('Срок уже прошёл.'), findsOneWidget);
 
     await t.tap(find.byTooltip('Меньше на 30 минут'));
     await t.pump();
     expect(find.text('5 ч 30 мин'), findsOneWidget);
+  });
+
+  testWidgets('what the model filled in by itself is named on the card', (t) async {
+    final api = FakeApi()
+      ..parseResult = sampleCard(title: 'Стоматолог', category: 'chores', timeFrom: '10:00', timeTo: '11:00',
+          guessed: ['time_from', 'time_to']);
+    await start(t, api);
+    await type(t, 'в пятницу к стоматологу');
+    await t.tap(find.byTooltip('Разобрать'));
+    await t.pumpAndSettle();
+
+    expect(find.text('Модель додумала: время начала, время конца. Поправь, если не так.'), findsOneWidget);
+    expect(t.widget<FilledButton>(find.widgetWithText(FilledButton, 'Проверить и записать')).onPressed, isNotNull);
   });
 
   testWidgets('missing fields are marked and filling them clears the mark', (t) async {
@@ -170,7 +208,7 @@ void main() {
     final api = FakeApi()
       ..parseResult = sampleCard(
           kind: 'task', title: 'Курсовая по базам данных', category: 'study', date: null, timeFrom: null,
-          timeTo: null, durationMin: 360, deadline: '2026-10-30');
+          timeTo: null, durationMin: 360, deadline: null, missing: ['deadline']);
     await start(t, api);
     await type(t, 'курсовая 6 часов до пятницы');
     await t.tap(find.byTooltip('Разобрать'));

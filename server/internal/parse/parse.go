@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -35,10 +36,13 @@ type Extract struct {
 	Deadline      *timeparse.Date `json:"deadline"`
 	Recurrence    *string         `json:"recurrence"`
 	CategoryGuess string          `json:"category_guess"`
-	Missing       []string        `json:"missing"`
+	Guessed       []string        `json:"guessed"`
 }
 
-var knownMissing = map[string]bool{"date": true, "time_from": true, "time_to": true, "duration_min": true, "deadline": true}
+var knownGuessed = map[string]bool{"date": true, "time_from": true, "time_to": true, "duration_min": true, "deadline": true}
+
+// defaultDeadlineDays is the deadline of a task whose phrase names no day.
+const defaultDeadlineDays = 7
 
 // Decode reads and validates the model's JSON. Every error here is the model's
 // fault: it makes the client retry once with the error text, then change model.
@@ -63,9 +67,9 @@ func Decode(raw string, now time.Time, loc *time.Location) (Extract, error) {
 	if !load.Category(e.CategoryGuess).Valid() {
 		return bad("category_guess должен быть одним из study, work, sport, hobby, rest, chores, other")
 	}
-	for _, m := range e.Missing {
-		if !knownMissing[m] {
-			return bad("missing: неизвестное поле %q", m)
+	for _, g := range e.Guessed {
+		if !knownGuessed[g] {
+			return bad("guessed: неизвестное поле %q", g)
 		}
 	}
 
@@ -122,17 +126,22 @@ type Result struct {
 	Deadline      *string   `json:"deadline"` // YYYY-MM-DD, task
 	Recurrence    *string   `json:"recurrence"`
 	Missing       []string  `json:"missing"`
+	Guessed       []string  `json:"guessed"` // filled by the model or by default, not named in the phrase
 	Problems      []Problem `json:"problems"`
 }
 
-// Build calculates the dates and the questions for the user. The model's own
-// `missing` is ignored: what is missing follows from the fields themselves.
+// Build calculates the dates and the questions for the user. The phrase names
+// only the task and the day; the model fills the rest and lists it in `guessed`.
+// What is still empty after that follows from the fields themselves.
 func Build(e Extract, now time.Time, loc *time.Location) Result {
 	now = now.In(loc)
 	r := Result{
 		Kind: e.Kind, Title: e.Title, CategoryGuess: e.CategoryGuess,
 		TimeFrom: e.TimeFrom, TimeTo: e.TimeTo, DurationMin: e.DurationMin,
-		Recurrence: e.Recurrence, Missing: []string{}, Problems: []Problem{},
+		Recurrence: e.Recurrence, Missing: []string{}, Guessed: []string{}, Problems: []Problem{},
+	}
+	for _, g := range e.Guessed {
+		r.guess(g)
 	}
 	if e.Kind == "task" {
 		buildTask(&r, e, now, loc)
@@ -152,6 +161,12 @@ func rfc(t time.Time) *string {
 	return &s
 }
 
+func (r *Result) guess(field string) {
+	if !slices.Contains(r.Guessed, field) {
+		r.Guessed = append(r.Guessed, field)
+	}
+}
+
 func (r *Result) problem(code, msg string) {
 	r.Problems = append(r.Problems, Problem{Code: code, Message: msg})
 }
@@ -168,16 +183,14 @@ func buildEvent(r *Result, e Extract, now time.Time, loc *time.Location) {
 		to = &c
 	}
 	if e.Date == nil {
-		r.Missing = append(r.Missing, "date")
+		e.Date = &timeparse.Date{Type: "relative", Days: new(0)}
+		r.guess("date")
 	}
 	if from == nil {
 		r.Missing = append(r.Missing, "time_from")
 	}
 	if to == nil && e.DurationMin == nil {
 		r.Missing = append(r.Missing, "time_to")
-	}
-	if e.Date == nil {
-		return
 	}
 	day, err := timeparse.Resolve(*e.Date, now, loc, from)
 	if err != nil {
@@ -217,13 +230,15 @@ func buildTask(r *Result, e Extract, now time.Time, loc *time.Location) {
 	if dl == nil {
 		dl = e.Date // «сделать завтра»: the day named is the deadline
 	}
+	var day time.Time
 	if dl == nil {
-		r.Missing = append(r.Missing, "deadline")
-		return
-	}
-	day, err := timeparse.Resolve(*dl, now, loc, nil)
-	if err != nil {
-		return
+		day = time.Date(now.Year(), now.Month(), now.Day()+defaultDeadlineDays, 0, 0, 0, 0, loc)
+		r.guess("deadline")
+	} else {
+		var err error
+		if day, err = timeparse.Resolve(*dl, now, loc, nil); err != nil {
+			return
+		}
 	}
 	r.Deadline = ymd(day)
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)

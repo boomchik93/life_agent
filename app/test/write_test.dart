@@ -192,12 +192,14 @@ void main() {
     final api = FakeApi()
       ..parseResult = sampleCard(
           kind: 'task', title: 'Курсовая', category: 'study', date: null, timeFrom: null, timeTo: null,
-          durationMin: 360, deadline: '2026-10-30');
+          durationMin: null, deadline: '2026-10-30', missing: ['duration_min']);
     await start(t, api);
-    await t.enterText(find.byType(TextField).first, 'курсовая 6 часов до пятницы');
+    await t.enterText(find.byType(TextField).first, 'курсовая до пятницы');
     await t.pump();
     await t.tap(find.byTooltip('Разобрать'));
     await t.pumpAndSettle();
+    await t.tap(find.widgetWithText(ChoiceChip, '6 ч'));
+    await t.pump();
     await t.tap(find.text('Сохранить задачу'));
     await t.pumpAndSettle();
 

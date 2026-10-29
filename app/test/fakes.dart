@@ -395,11 +395,12 @@ ParsedCard sampleCard({
   String? deadline,
   String? recurrence,
   List<String> missing = const [],
+  List<String> guessed = const [],
 }) =>
     ParsedCard(
       kind: kind, title: title, category: category, date: date, timeFrom: timeFrom,
       timeTo: timeTo, durationMin: durationMin, deadline: deadline, recurrence: recurrence,
-      missing: missing, model: 'vendor/model:free',
+      missing: missing, guessed: guessed, model: 'vendor/model:free',
     );
 
 LlmInfo sampleLlm({String parseModel = '', List<String> fallbacks = const []}) => LlmInfo(

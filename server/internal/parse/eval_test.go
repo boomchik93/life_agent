@@ -23,11 +23,11 @@ func TestReferenceSetIsConsistent(t *testing.T) {
 		t.Fatal(err)
 	}
 	kinds := map[string]int{}
-	missing, recurring := 0, 0
+	incomplete, recurring := 0, 0
 	for _, c := range set.Cases {
 		kinds[c.Expect.Kind]++
-		if len(c.Expect.Missing) > 0 {
-			missing++
+		if len(c.Expect.Guessed) > 0 {
+			incomplete++
 		}
 		if c.Expect.Recurrence != nil {
 			recurring++
@@ -39,8 +39,8 @@ func TestReferenceSetIsConsistent(t *testing.T) {
 			t.Errorf("%q: task with event fields", c.Text)
 		}
 	}
-	if kinds["event"] < 10 || kinds["task"] < 8 || missing < 6 || recurring < 3 {
-		t.Errorf("coverage: kinds %v, incomplete %d, recurring %d (events, tasks, repeats and incomplete phrases are all required)", kinds, missing, recurring)
+	if kinds["event"] < 10 || kinds["task"] < 8 || incomplete < 6 || recurring < 3 {
+		t.Errorf("coverage: kinds %v, incomplete %d, recurring %d (events, tasks, repeats and incomplete phrases are all required)", kinds, incomplete, recurring)
 	}
 }
 
@@ -64,6 +64,16 @@ func TestReferenceSetPerfectModelScoresFull(t *testing.T) {
 		} else if e.Deadline != nil {
 			ex.Deadline = absDate(*e.Deadline)
 		}
+		// What the phrase does not name the model fills with any value of its own.
+		for _, g := range e.Guessed {
+			switch g {
+			case "time_from":
+				ex.TimeFrom = s("12:00")
+			case "time_to", "duration_min":
+				ex.DurationMin = ip(60)
+			}
+		}
+		ex.Guessed = e.Guessed
 		got := Build(ex, now, ekb)
 		if d := Diff(e, got, ekb); len(d) > 0 {
 			t.Errorf("%q: %v", c.Text, d)
@@ -123,7 +133,7 @@ func (e *evalCaller) Call(ctx context.Context, in llm.Input) (llm.Output, error)
 		return llm.Output{}, &llm.DailyLimitError{ResetAt: e.reset}
 	}
 	raw := `{"kind":"task","title":"Курсовая","date":null,"time_from":null,"time_to":null,"duration_min":360,
-	 "deadline":{"type":"relative","days":1},"recurrence":null,"category_guess":"study","missing":[]}`
+	 "deadline":{"type":"relative","days":1},"recurrence":null,"category_guess":"study","guessed":[]}`
 	if err := in.Check(raw); err != nil {
 		return llm.Output{}, err
 	}

@@ -10,7 +10,7 @@ const categoryNames = {
   'other': 'Другое',
 };
 
-const _missingNames = {
+const _fieldNames = {
   'date': 'дата',
   'time_from': 'время начала',
   'time_to': 'время конца',
@@ -32,6 +32,7 @@ class ParsedCard {
     this.deadline,
     this.recurrence,
     this.missing = const [],
+    this.guessed = const [],
     this.model = '',
   });
 
@@ -40,6 +41,9 @@ class ParsedCard {
   final String? date, timeFrom, timeTo, deadline, recurrence; // YYYY-MM-DD, HH:MM, RRULE
   final int? durationMin;
   final List<String> missing;
+
+  /// Fields the phrase did not name and the model filled in by itself.
+  final List<String> guessed;
   final String model;
 
   factory ParsedCard.fromJson(Map<String, dynamic> j) => ParsedCard(
@@ -53,6 +57,7 @@ class ParsedCard {
         deadline: j['deadline'] as String?,
         recurrence: j['recurrence'] as String?,
         missing: [for (final m in (j['missing'] as List? ?? const [])) m as String],
+        guessed: [for (final g in (j['guessed'] as List? ?? const [])) g as String],
         model: j['model'] as String? ?? '',
       );
 }
@@ -160,8 +165,9 @@ class CardDraft {
   }
 }
 
-String missingText(List<String> missing) =>
-    missing.map((m) => _missingNames[m] ?? m).join(', ');
+/// "время начала, время конца" for field names like `time_from`.
+String fieldsText(List<String> fields) =>
+    fields.map((f) => _fieldNames[f] ?? f).join(', ');
 
 String minutesHm(int m) =>
     '${(m ~/ 60).toString().padLeft(2, '0')}:${(m % 60).toString().padLeft(2, '0')}';

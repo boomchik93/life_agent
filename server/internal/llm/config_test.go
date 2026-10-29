@@ -51,7 +51,7 @@ func TestMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := c.Tasks[TaskParse]
-	if p.Model != "a/m:free" || p.Effort != "low" || p.MaxTokens != 2000 || len(p.Fallbacks) != 1 {
+	if p.Model != "a/m:free" || p.Effort != "low" || p.MaxTokens != 4000 || len(p.Fallbacks) != 1 {
 		t.Errorf("override on top of defaults: %+v", p)
 	}
 	if c.Tasks[TaskAdvice].Model != base.Tasks[TaskAdvice].Model {

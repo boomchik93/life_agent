@@ -9,8 +9,8 @@ import '../models.dart';
 import '../slot.dart';
 import 'verdict_screen.dart';
 
-/// The result of a parse as a card the user can fix. Missing fields are marked
-/// instead of being guessed. An event goes through the server's check before it
+/// The result of a parse as a card the user can fix. What the model filled in
+/// by itself is named so the user can check it; fields still empty are marked. An event goes through the server's check before it
 /// is written; a task is saved as it is. Pops the text to show once saved.
 class CardScreen extends StatefulWidget {
   const CardScreen({super.key, required this.api, required this.card, this.now});
@@ -133,6 +133,7 @@ class _CardScreenState extends State<CardScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final missing = _d.missing();
+    final guessed = widget.card.guessed.where((g) => !missing.contains(g)).toList();
     final title = _d.title.trim().isEmpty;
     final problems = _d.problems(_now);
     return Scaffold(
@@ -155,8 +156,14 @@ class _CardScreenState extends State<CardScreen> {
                 if (missing.isNotEmpty)
                   _Banner(
                     icon: Icons.edit_note,
-                    text: 'Не хватает: ${missingText(missing)}. Заполни ниже.',
+                    text: 'Не хватает: ${fieldsText(missing)}. Заполни ниже.',
                     color: theme.colorScheme.tertiaryContainer,
+                  ),
+                if (guessed.isNotEmpty)
+                  _Banner(
+                    icon: Icons.auto_awesome,
+                    text: 'Модель додумала: ${fieldsText(guessed)}. Поправь, если не так.',
+                    color: theme.colorScheme.secondaryContainer,
                   ),
                 for (final p in problems)
                   _Banner(icon: Icons.warning_amber, text: p, color: theme.colorScheme.errorContainer),
